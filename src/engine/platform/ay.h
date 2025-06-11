@@ -31,6 +31,8 @@ class DivPlatformAY8910: public DivDispatch {
     const unsigned char AY8914RegRemap[16]={
       0,4,1,5,2,6,9,8,11,12,13,3,7,10,14,15
     };
+    const double TFX_FIXED_CLOCK = 2457600.0; // 2.4576 MHz, fixed for TFX
+    const int MFP_PRESCALES[8] = {0,4,10,16,50,64,100,200};
     inline unsigned char regRemap(unsigned char reg) { return intellivision?AY8914RegRemap[reg&0x0f]:reg&0x0f; }
     struct Channel: public SharedChannel<int> {
       struct PSGMode {
@@ -87,7 +89,7 @@ class DivPlatformAY8910: public DivDispatch {
           offset(1),
           den(1),
           num(1),
-          mode(0),
+          mode(-1),
           lowBound(0),
           out(0) {}
       } tfx;
@@ -106,6 +108,25 @@ class DivPlatformAY8910: public DivDispatch {
         konCycles(0),
         fixedFreq(0) {}
     };
+    struct MFPTimer {
+      unsigned char prescaler; // 0 - 7 (0 for stop, 1-7: (respectively) 1/4, 1/10, 1/16, 1/50, 1/64, 1/100, 1/200
+      unsigned char period; // 0 - 255 (0 = 256 for 1-256 range)
+      double prescalerClock; // clock this first, then check if above prescaler
+      double timerClock; // clock this when prescalerClock > prescaler
+      MFPTimer():
+        prescaler(0),
+        period(0),
+        prescalerClock(0),
+        timerClock(0) {}
+    };
+
+    struct MFP {
+      MFPTimer timer[3]; // the MFP has 4 timers, but we only need to emulate 3
+      MFP() :
+        timer{} {}
+    };
+
+    MFP mfp;
     Channel chan[3];
     bool isMuted[3];
     struct QueuedWrite {
@@ -159,6 +180,8 @@ class DivPlatformAY8910: public DivDispatch {
   public:
     void runDAC(int runRate=0, int advance=1);
     void runTFX(int runRate=0, int advance=1);
+    MFPTimer ym_period_to_mfp(unsigned short ym_period);
+    void runMFP(int runRate=0, int advance=1);
     void setExtClockDiv(unsigned int eclk=COLOR_NTSC, unsigned char ediv=8);
     void acquire(short** buf, size_t len);
     void acquireDirect(blip_buffer_t** bb, size_t len);

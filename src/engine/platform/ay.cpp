@@ -238,6 +238,110 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
   }
 }
 
+DivPlatformAY8910::MFPTimer DivPlatformAY8910::ym_period_to_mfp(unsigned short ym_period) {
+  if (ym_period == 0) {
+    DivPlatformAY8910::MFPTimer empty;
+    empty.period = 0;
+    empty.prescaler = 0;
+    return empty;
+  };
+  constexpr int MFP_PRESCALERS[7] = { 4, 10, 16, 50, 64, 100, 200 };
+  double ym_period_sec = static_cast<double>(ym_period) / (double)(rate/2);
+  double min_error = 1e9;
+  DivPlatformAY8910::MFPTimer best;
+  for (int presc_idx = 0; presc_idx < 7; ++presc_idx) {
+    int presc = MFP_PRESCALERS[presc_idx];
+    double ideal_data = ym_period_sec * TFX_FIXED_CLOCK / presc;
+    int data = static_cast<int>(std::round(ideal_data));
+    if (data < 1) data = 1;
+    if (data > 256) data = 256;
+    double actual_period = (data * presc) / TFX_FIXED_CLOCK;
+    double error = std::fabs(actual_period - ym_period_sec);
+    if (error < min_error) {
+      min_error = error;
+      best.period = (data == 256) ? 0 : data; // MFP: 0 means 256
+      best.prescaler = presc_idx+1;
+    }
+  }
+  return best;
+}
+
+void DivPlatformAY8910::runMFP(int runRate, int advance) {
+  const unsigned char prescalers[8] = {0, 4, 10, 16, 50, 64, 100, 200};
+  //advance *= (double)chipClock / (double)rate;
+  double tfxClock = TFX_FIXED_CLOCK;
+  double counterRatio = advance * (tfxClock / rate);
+  //logI("clock: %d, rate: %d", chipClock, rate);
+  for (int i = 0; i < 3; i++) {
+    //if (!mfp.timer[i].prescaler) continue;
+    if (chan[i].tfx.mode == -1 && !isMuted[i]) {
+      if (intellivision && chan[i].curPSGMode.getEnvelope()) {
+        immWrite(0x08+i,(chan[i].outVol&0xc)<<2);
+        continue;
+      } else {
+        immWrite(0x08+i,(chan[i].outVol&15)|((chan[i].curPSGMode.getEnvelope())<<2));
+        continue;
+      }
+    }
+    mfp.timer[i].timerClock += counterRatio;
+    if (mfp.timer[i].prescalerClock >= prescalers[mfp.timer[i].prescaler & 7] && mfp.timer[i].prescaler != 0) {
+      mfp.timer[i].prescalerClock -= prescalers[mfp.timer[i].prescaler & 7];
+      mfp.timer[i].timerClock += 1;
+    }
+    int actualPeriod = (mfp.timer[i].period == 0) ? 256 * prescalers[mfp.timer[i].prescaler & 7] : mfp.timer[i].period * prescalers[mfp.timer[i].prescaler & 7];
+    if (mfp.timer[i].timerClock >= actualPeriod && chan[i].tfx.mode == 0 && chan[i].active) {
+      mfp.timer[i].timerClock -= actualPeriod;
+      chan[i].tfx.out ^= 1;
+      int output = ((chan[i].tfx.out) ? chan[i].outVol : (chan[i].tfx.lowBound - (15 - chan[i].outVol)));
+      // TODO: fix this stupid crackling noise that happens
+      // everytime the volume changes
+      output = (output <= 0) ? 0 : output; // underflow
+      output = (output >= 15) ? 15 : output; // overflow
+      output &= 15; // i don't know if i need this but i'm too scared to remove it
+      if (!isMuted[i]) {
+        if (intellivision && selCore) {
+          immWrite(0x0b + i, (output & 0xc) << 2);
+        }
+        else {
+          immWrite(0x08 + i, output | (chan[i].curPSGMode.getEnvelope() << 2));
+        }
+      }
+    }
+    if (mfp.timer[i].timerClock >= actualPeriod && chan[i].tfx.mode == 1) {
+      mfp.timer[i].timerClock -= actualPeriod;
+      if (!isMuted[i]) {
+        if (intellivision && chan[i].curPSGMode.getEnvelope()) {
+          immWrite(0x08 + i, (chan[i].outVol & 0xc) << 2);
+        }
+        else {
+          immWrite(0x08 + i, (chan[i].outVol & 15) | ((chan[i].curPSGMode.getEnvelope()) << 2));
+        }
+      }
+      if (intellivision && selCore) {
+        immWrite(0xa, ayEnvMode);
+      }
+      else {
+        immWrite(0xd, ayEnvMode);
+      }
+
+    }
+    //logI("timer %d: timer %f, prescaler %f", i, mfp.timer[i].timerClock, mfp.timer[i].prescalerClock);
+    int timerPeriod;
+    if (chan[i].tfx.num > 0) {
+      timerPeriod = (chan[i].freq >> 1) * chan[i].tfx.den / chan[i].tfx.num;
+    }
+    else {
+      timerPeriod = (chan[i].freq >> 1) * chan[i].tfx.den;
+    }
+    MFPTimer new_period = ym_period_to_mfp(timerPeriod);
+    mfp.timer[i].period = new_period.period;
+    mfp.timer[i].prescaler = new_period.prescaler;
+    //logI("chan freq: %04x", chan[i].freq);
+    //logI("converted freq: %d, converted prescaler: %d", new_period.period, new_period.prescaler);
+    //logI("actual freq: %d, actual prescaler: %d", mfp.timer[i].period, mfp.timer[i].prescaler);
+  }
+}
+
 void DivPlatformAY8910::checkWrites() {
   while (!writes.empty()) {
     QueuedWrite w=writes.front();
@@ -296,9 +400,14 @@ void DivPlatformAY8910::acquire_mame(blip_buffer_t** bb, size_t len) {
         }
 
         // TFX
-        if (chan[j].active && (chan[j].curPSGMode.val&16) && !(chan[j].curPSGMode.val&8) && chan[j].tfx.mode!=-1) {
+        /*if (chan[j].active && (chan[j].curPSGMode.val & 16) && !(chan[j].curPSGMode.val & 8) && chan[j].tfx.mode != -1) {
           const int remainTime=chan[j].tfx.period-chan[j].tfx.counter;
           if (remainTime<advance) advance=remainTime;
+        }*/
+        if (chan[j].active && (chan[j].curPSGMode.val & 16) && !(chan[j].curPSGMode.val & 8) && chan[j].tfx.mode != -1) {
+          double tfxTicksLeft = chan[j].tfx.period - mfp.timer[j].timerClock;
+          int samplesToNextTFX = (int)std::ceil(tfxTicksLeft / (TFX_FIXED_CLOCK / rate));
+          if (samplesToNextTFX < advance) advance = samplesToNextTFX;
         }
 
         if (advance<=1) break;
@@ -326,7 +435,8 @@ void DivPlatformAY8910::acquire_mame(blip_buffer_t** bb, size_t len) {
     if (advance<1) advance=1;
 
     runDAC(0,advance);
-    runTFX(0,advance);
+    //runTFX(0,advance);
+    runMFP(0, advance);
     checkWrites();
 
     ay->sound_stream_update(ayBuf,advance);
