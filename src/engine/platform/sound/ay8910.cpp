@@ -1177,9 +1177,10 @@ void ay8910_device::sound_stream_update(short* outputs, int advance)
         {
           if (m_feature & PSG_EXTENDED_ENVELOPE) // AY8914 Has a two bit tone_envelope field
             outputs[chan]=m_env_table[chan][m_vol_enabled[chan] ? env_volume >> (3-tone_envelope(tone)) : 0];
-          else
+          else {
             outputs[chan]=m_env_table[chan][m_vol_enabled[chan] ? env_volume : 0];
             ay_int[chan] = m_vol_enabled[chan] ? env_volume : 0;
+          }
         }
       }
       else
