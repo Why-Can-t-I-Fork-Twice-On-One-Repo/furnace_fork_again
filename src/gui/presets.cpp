@@ -1247,7 +1247,9 @@ void FurnaceGUI::initSystemPresets() {
     _("Atari ST"), {
       CH(DIV_SYSTEM_AY8910, 1.0f, 0,
         "clockSel=3\n"
-        "chipType=1\n"
+        "chipType=4\n"
+        "timerClock=1\n"
+        "timerScheme=1\n"
       )
     }
   );
