@@ -109,7 +109,6 @@ class DivPlatformAY8910: public DivDispatch {
     struct MFPTimer {
       unsigned char prescaler; // 0 - 7 (0 for stop, 1-7: (respectively) 1/4, 1/10, 1/16, 1/50, 1/64, 1/100, 1/200
       unsigned char period; // 0 - 255 (0 = 256 for 1-256 range)
-      double prescalerClock; // clock this first, then check if above prescaler
       double timerClock; // clock this when prescalerClock > prescaler
       MFPTimer():
         prescaler(0),

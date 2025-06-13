@@ -164,7 +164,8 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
   */
   float counterRatio=advance;
   if (runRate!=0) counterRatio=(double)rate/(double)runRate;
-  int timerPeriod, output;
+  int output;
+  // shut the compiler up, jesus...
   for (int i=0; i<3; i++) {
     if (chan[i].active && (chan[i].curPSGMode.val&16) && !(chan[i].curPSGMode.val&8)) {
       if (chan[i].tfx.mode == -1 && !isMuted[i]) {
