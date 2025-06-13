@@ -853,6 +853,10 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
       bool halfClock=flags.getBool("halfClock",false);
       bool stereo=flags.getBool("stereo",false);
       int stereoSep=flags.getInt("stereoSep",0);
+      int timerScheme=flags.getInt("timerScheme",0);
+      int timerClock = flags.getInt("timerClock", 0);
+      int timerCustomClock = flags.getInt("timerCustomClock", 0);
+      int panLaw = flags.getInt("panLaw", 0);
 
       ImGui::Text(_("Clock rate:"));
       ImGui::Indent();
@@ -921,6 +925,63 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
         altered=true;
       }
       ImGui::Unindent();
+      if (settings.ayCore == 1) {
+        ImGui::Text("note: the timer options below do not work properly on AtomicSSG!");
+      }
+      ImGui::BeginDisabled(settings.ayCore==1);
+      ImGui::Text(_("Timer resolution:"));
+      ImGui::Indent();
+      if (ImGui::RadioButton(_("32-bit"), timerScheme == 0)) {
+        timerScheme = 0;
+        altered = true;
+      }
+      if (ImGui::RadioButton(_("MFP (8-bit with prescalers)"), timerScheme == 1)) {
+        timerScheme = 1;
+        altered = true;
+      }
+      ImGui::Unindent();
+      ImGui::Text(_("Timer frequency:"));
+      ImGui::Indent();
+      if (ImGui::RadioButton(_("Same as chip frequency"), timerClock == 0)) {
+        timerClock = 0;
+        altered = true;
+      }
+      if (ImGui::RadioButton(_("2.4576MHz (Atari ST)"), timerClock == 1)) {
+        timerClock = 1;
+        altered = true;
+      }
+      if (ImGui::RadioButton(_("Custom"), timerClock == -1)) {
+        timerClock = -1;
+        timerCustomClock = MIN_CUSTOM_CLOCK;
+        altered = true;
+      }
+      if (timerClock == -1) {
+        if (ImGui::InputInt("Hz##timer", &timerCustomClock, 100, 10000)) {
+          altered = true;
+        }
+        if (timerCustomClock < MIN_CUSTOM_CLOCK) timerCustomClock = MIN_CUSTOM_CLOCK;
+        if (timerClock > MAX_CUSTOM_CLOCK) timerCustomClock = MAX_CUSTOM_CLOCK;
+      }
+      ImGui::EndDisabled();
+      ImGui::Unindent();
+      ImGui::Text(_("Center level:"));
+      ImGui::Indent();
+      if (ImGui::RadioButton(_("-0 dB (VGMPlay)"), panLaw == 0)) {
+        panLaw = 0;
+        altered = true;
+      }
+      if (ImGui::RadioButton(_("-3 dB"), panLaw == 1)) {
+        panLaw = 1;
+        altered = true;
+      }
+      if (ImGui::RadioButton(_("-6 dB (most hardwares)"), panLaw == 2)) {
+        panLaw = 2;
+        altered = true;
+      }
+      if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip(_("note: not supported by the VGM format!"));
+      }
+      ImGui::Unindent();
       if (type==DIV_SYSTEM_AY8910) {
         ImGui::Text(_("Chip type:"));
         ImGui::Indent();
@@ -931,6 +992,17 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
         if (ImGui::RadioButton(_("YM2149(F)"),chipType==1)) {
           chipType=1;
           altered=true;
+        }
+        ImGui::BeginDisabled(settings.ayCore == 1);
+        if (ImGui::RadioButton(_("YM2149(F) with non-linear mixing"), chipType == 4)) {
+          chipType = 4;
+          altered = true;
+        }
+        ImGui::EndDisabled();
+        if (settings.ayCore==1) {
+          ImGui::Indent();
+          ImGui::Text("note: this chip type does not work on AtomicSSG!");
+          ImGui::Unindent();
         }
         if (ImGui::RadioButton(_("Sunsoft 5B"),chipType==2)) {
           chipType=2;
@@ -953,7 +1025,7 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
           }
         }
       }
-      ImGui::BeginDisabled(type==DIV_SYSTEM_AY8910 && chipType==2);
+      ImGui::BeginDisabled(type==DIV_SYSTEM_AY8910 && chipType==2 || type == DIV_SYSTEM_AY8910 && chipType == 4);
       if (ImGui::Checkbox(_("Stereo##_AY_STEREO"),&stereo)) {
         altered=true;
       }
@@ -967,7 +1039,7 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
         }
       }
       ImGui::EndDisabled();
-      ImGui::BeginDisabled(type==DIV_SYSTEM_AY8910 && chipType!=1);
+      ImGui::BeginDisabled(type == DIV_SYSTEM_AY8910 && chipType != 1 && chipType != 4);
       if (ImGui::Checkbox(_("Half Clock divider##_AY_CLKSEL"),&halfClock)) {
         altered=true;
       }
@@ -982,6 +1054,10 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
           flags.set("halfClock",halfClock);
           flags.set("stereo",stereo);
           flags.set("stereoSep",stereoSep);
+          flags.set("timerScheme", timerScheme);
+          flags.set("timerClock", timerClock);
+          flags.set("timerCustomClock", timerCustomClock);
+          flags.set("panLaw", panLaw);
         });
       }
       break;
@@ -2780,7 +2856,7 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
       altered=true;
     }
     ImGui::Indent();
-    if (ImGui::InputInt("Hz",&customClock,100,10000)) {
+    if (ImGui::InputInt("Hz##chip",&customClock,100,10000)) {
       if (customClock<MIN_CUSTOM_CLOCK) customClock=0;
       if (customClock>MAX_CUSTOM_CLOCK) customClock=MAX_CUSTOM_CLOCK;
       altered=true;

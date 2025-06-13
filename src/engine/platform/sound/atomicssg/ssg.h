@@ -143,6 +143,14 @@ typedef struct {
     int ssg_noise_lfsr[2];
     int ssg_noise_bit;
 
+    int vol_a;
+    int vol_b;
+    int vol_c;
+
+    int ssg_vol_a; // for use in external mixing tables
+    int ssg_vol_b;
+    int ssg_vol_c;
+
     int o_gpio_a;
     int o_gpio_a_d;
     int o_gpio_b;

@@ -31,8 +31,6 @@ class DivPlatformAY8910: public DivDispatch {
     const unsigned char AY8914RegRemap[16]={
       0,4,1,5,2,6,9,8,11,12,13,3,7,10,14,15
     };
-    const double TFX_FIXED_CLOCK = 2457600.0; // 2.4576 MHz, fixed for TFX
-    const int MFP_PRESCALES[8] = {0,4,10,16,50,64,100,200};
     inline unsigned char regRemap(unsigned char reg) { return intellivision?AY8914RegRemap[reg&0x0f]:reg&0x0f; }
     struct Channel: public SharedChannel<int> {
       struct PSGMode {
@@ -116,7 +114,6 @@ class DivPlatformAY8910: public DivDispatch {
       MFPTimer():
         prescaler(0),
         period(0),
-        prescalerClock(0),
         timerClock(0) {}
     };
 
@@ -157,6 +154,13 @@ class DivPlatformAY8910: public DivDispatch {
     unsigned char extDiv;
     unsigned char dacRateDiv;
 
+    double tfxClock;
+    int timerScheme;
+    int mixingStrategy;
+
+    unsigned short sideVol;
+    unsigned short centerVol;
+
     bool stereo, sunsoft, intellivision, clockSel, yamaha;
     bool ioPortA, ioPortB;
     unsigned char portAVal, portBVal;
@@ -168,6 +172,8 @@ class DivPlatformAY8910: public DivDispatch {
     short ayEnvSlideLow;
     short ayEnvSlide;
 
+    unsigned short voltable[32][32][32];
+
     void checkWrites();
     void updateOutSel(bool immediate=false);
 
@@ -178,6 +184,8 @@ class DivPlatformAY8910: public DivDispatch {
     friend void putDispatchChan(void*,int,int);
   
   public:
+    void YM2149_BuildModelVolumeTable(unsigned short volumetable[32][32][32]);
+    unsigned short interpolateTrilinear(int lva, int lvb, int lvc);
     void runDAC(int runRate=0, int advance=1);
     void runTFX(int runRate=0, int advance=1);
     MFPTimer ym_period_to_mfp(unsigned short ym_period);

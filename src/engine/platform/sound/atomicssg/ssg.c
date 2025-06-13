@@ -378,13 +378,23 @@ void SSG_Clock(ssg_t* chip, int clk)
         envlevel = (chip->ssg_dir[0] ^ ((chip->ssg_envmode >> 2) & 1)) == 0 ? (envlevel ^ 31) : envlevel;
         envlevel = (chip->ssg_t2[0] && (chip->ssg_envmode & 8) == 0) ? 0 : envlevel;
 
-        int vol_a = (chip->ssg_level_a & 0x10) != 0 ? envlevel : (((chip->ssg_level_a & 15) << 1) | 1);
-        int vol_b = (chip->ssg_level_b & 0x10) != 0 ? envlevel : (((chip->ssg_level_b & 15) << 1) | 1);
-        int vol_c = (chip->ssg_level_c & 0x10) != 0 ? envlevel : (((chip->ssg_level_c & 15) << 1) | 1);
+        chip->vol_a = (chip->ssg_level_a & 0x10) != 0 ? envlevel : (((chip->ssg_level_a & 15) << 1) | 1);
+        chip->vol_b = (chip->ssg_level_b & 0x10) != 0 ? envlevel : (((chip->ssg_level_b & 15) << 1) | 1);
+        chip->vol_c = (chip->ssg_level_c & 0x10) != 0 ? envlevel : (((chip->ssg_level_c & 15) << 1) | 1);
+        
+        // expose internal state (for non-linear mixing)
+        const unsigned char ym_4_to_5[16] = { 0,1,5,7,9,11,13,15,17,19,21,23,25,27,29,31 };
+        chip->ssg_vol_a = (chip->ssg_level_a & 0x10) != 0 ? envlevel : ym_4_to_5[chip->ssg_level_a & 15];
+        chip->ssg_vol_b = (chip->ssg_level_a & 0x10) != 0 ? envlevel : ym_4_to_5[chip->ssg_level_a & 15];
+        chip->ssg_vol_c = (chip->ssg_level_a & 0x10) != 0 ? envlevel : ym_4_to_5[chip->ssg_level_a & 15];
 
         int sign_a = ((chip->ssg_mode & 1) == 0 && (chip->ssg_sign[0] & 1) != 0) || ((chip->ssg_mode & 8) == 0 && chip->ssg_noise_bit);
         int sign_b = ((chip->ssg_mode & 2) == 0 && (chip->ssg_sign[0] & 2) != 0) || ((chip->ssg_mode & 16) == 0 && chip->ssg_noise_bit);
         int sign_c = ((chip->ssg_mode & 4) == 0 && (chip->ssg_sign[0] & 4) != 0) || ((chip->ssg_mode & 32) == 0 && chip->ssg_noise_bit);
+
+        chip->ssg_vol_a = sign_a ? 0 : chip->ssg_vol_a;
+        chip->ssg_vol_b = sign_b ? 0 : chip->ssg_vol_b;
+        chip->ssg_vol_c = sign_c ? 0 : chip->ssg_vol_c;
 
         static const float volume_lut_ay[32] = {
           0.0000,
@@ -429,13 +439,13 @@ void SSG_Clock(ssg_t* chip, int clk)
         };
 
         if (chip->type & 1) {
-          chip->o_analog[0] = volume_lut_ay[sign_a ? 0 : vol_a] * 11806;
-          chip->o_analog[1] = volume_lut_ay[sign_b ? 0 : vol_b] * 11806;
-          chip->o_analog[2] = volume_lut_ay[sign_c ? 0 : vol_c] * 11806;
+          chip->o_analog[0] = volume_lut_ay[sign_a ? 0 : chip->vol_a] * 11806;
+          chip->o_analog[1] = volume_lut_ay[sign_b ? 0 : chip->vol_b] * 11806;
+          chip->o_analog[2] = volume_lut_ay[sign_c ? 0 : chip->vol_c] * 11806;
         } else {
-          chip->o_analog[0] = volume_lut_ssg[sign_a ? 0 : vol_a] * 10922;
-          chip->o_analog[1] = volume_lut_ssg[sign_b ? 0 : vol_b] * 10922;
-          chip->o_analog[2] = volume_lut_ssg[sign_c ? 0 : vol_c] * 10922;
+          chip->o_analog[0] = volume_lut_ssg[sign_a ? 0 : chip->vol_a] * 10922;
+          chip->o_analog[1] = volume_lut_ssg[sign_b ? 0 : chip->vol_b] * 10922;
+          chip->o_analog[2] = volume_lut_ssg[sign_c ? 0 : chip->vol_c] * 10922;
         }
     }
 

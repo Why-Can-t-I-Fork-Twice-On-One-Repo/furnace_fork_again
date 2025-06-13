@@ -1179,14 +1179,20 @@ void ay8910_device::sound_stream_update(short* outputs, int advance)
             outputs[chan]=m_env_table[chan][m_vol_enabled[chan] ? env_volume >> (3-tone_envelope(tone)) : 0];
           else
             outputs[chan]=m_env_table[chan][m_vol_enabled[chan] ? env_volume : 0];
+            ay_int[chan] = m_vol_enabled[chan] ? env_volume : 0;
         }
       }
       else
       {
         if (is_expanded_mode())
           outputs[chan]=m_env_table[chan][m_vol_enabled[chan] ? tone_volume(tone) : 0];
-        else
+        else {
           outputs[chan]=m_vol_table[chan][m_vol_enabled[chan] ? tone_volume(tone) : 0];
+          const unsigned char ym_4_to_5[16] = { 0,1,5,7,9,11,13,15,17,19,21,23,25,27,29,31 };
+          ay_int[chan] = m_vol_enabled[chan] ? tone_volume(tone) : 0;
+          if (chip_type == YM2149)
+            ay_int[chan] = ym_4_to_5[ay_int[chan]];
+        }
       }
     }
   }
