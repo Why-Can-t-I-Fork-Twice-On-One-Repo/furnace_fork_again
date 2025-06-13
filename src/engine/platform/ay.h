@@ -118,7 +118,7 @@ class DivPlatformAY8910: public DivDispatch {
 
     struct MFP {
       MFPTimer timer[3]; // the MFP has 4 timers, but we only need to emulate 3
-      MFP() :
+      MFP():
         timer{} {}
     };
 

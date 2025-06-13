@@ -813,8 +813,6 @@ void DivPlatformAY8910::tick(bool sysTick) {
         rWrite((i)<<1,chan[i].freq&0xff);
         rWrite(1+((i)<<1),chan[i].freq>>8);
       }
-      if (chan[i].keyOn) chan[i].keyOn=false;
-      if (chan[i].keyOff) chan[i].keyOff=false;
       if (chan[i].freqChanged && chan[i].autoEnvNum>0 && chan[i].autoEnvDen>0) {
         ayEnvPeriod=(chan[i].freq*chan[i].autoEnvDen/chan[i].autoEnvNum)>>4;
         immWrite(0x0b,ayEnvPeriod);
@@ -857,6 +855,8 @@ void DivPlatformAY8910::tick(bool sysTick) {
         if (selCore && !intellivision) chan[i].tfx.period = chan[i].tfx.period * 4;
         break;
       }
+      if (chan[i].keyOn) chan[i].keyOn = false;
+      if (chan[i].keyOff) chan[i].keyOff = false;
       chan[i].freqChanged=false;
     }
   }
