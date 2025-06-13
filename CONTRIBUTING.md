@@ -1,6 +1,6 @@
 # Contributing
 
-contributions to Furnace are welcome!
+contributions to Furnace are welcome! 
 
 # Issue reports
 
