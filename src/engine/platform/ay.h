@@ -185,7 +185,6 @@ class DivPlatformAY8910: public DivDispatch {
   
   public:
     void YM2149_BuildModelVolumeTable(unsigned short volumetable[32][32][32]);
-    unsigned short interpolateTrilinear(int lva, int lvb, int lvc);
     void runDAC(int runRate=0, int advance=1);
     void runTFX(int runRate=0, int advance=1);
     MFPTimer ym_period_to_mfp(unsigned short ym_period);
