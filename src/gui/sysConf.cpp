@@ -1025,7 +1025,7 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
           }
         }
       }
-      ImGui::BeginDisabled(type==DIV_SYSTEM_AY8910 && chipType==2 || type == DIV_SYSTEM_AY8910 && chipType == 4);
+      ImGui::BeginDisabled((type == DIV_SYSTEM_AY8910 && chipType == 2) || (type == DIV_SYSTEM_AY8910 && chipType == 4));
       if (ImGui::Checkbox(_("Stereo##_AY_STEREO"),&stereo)) {
         altered=true;
       }
