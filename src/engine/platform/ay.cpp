@@ -193,18 +193,20 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
       while (chan[i].tfx.counter >= chan[i].tfx.period && chan[i].tfx.mode == 0) {
         chan[i].tfx.counter -= chan[i].tfx.period;
         chan[i].tfx.out ^= 1;
-        output = ((chan[i].tfx.out) ? chan[i].outVol : (chan[i].tfx.lowBound-(15-chan[i].outVol)));
-        // TODO: fix this stupid crackling noise that happens
-        // everytime the volume changes
-        output = (output <= 0) ? 0 : output; // underflow
-        output = (output >= 15) ? 15 : output; // overflow
+      }
+      // so yeah... we need this separate from the timer logic to fix the crackling
+      if (chan[i].tfx.mode == 0) {
+        output = ((chan[i].tfx.out) ? chan[i].outVol : (chan[i].tfx.lowBound - (15 - chan[i].outVol)));
+        output = (output < 0) ? 0 : output; // underflow
+        output = (output > 15) ? 15 : output; // overflow
         output &= 15; // i don't know if i need this but i'm too scared to remove it
         if (!isMuted[i]) {
           // TODO: ???????
           if (intellivision && selCore) {
-            immWrite(0x0b+i,(output&0xc)<<2);
-          } else {
-            immWrite(0x08+i,output|(chan[i].curPSGMode.getEnvelope()<<2));
+            immWrite(0x0b + i, (output & 0xc) << 2);
+          }
+          else {
+            immWrite(0x08 + i, output | (chan[i].curPSGMode.getEnvelope() << 2));
           }
         }
       }
@@ -280,21 +282,6 @@ void DivPlatformAY8910::runMFP(int runRate, int advance) {
       if (mfp.timer[i].timerClock >= actualPeriod && chan[i].tfx.mode == 0) {
         mfp.timer[i].timerClock -= actualPeriod;
         chan[i].tfx.out ^= 1;
-        int output = ((chan[i].tfx.out) ? chan[i].outVol : (chan[i].tfx.lowBound - (15 - chan[i].outVol)));
-        // TODO: fix this stupid crackling noise that happens
-        // everytime the volume changes
-        output = (output <= 0) ? 0 : output; // underflow
-        output = (output >= 15) ? 15 : output; // overflow
-        output &= 15; // i don't know if i need this but i'm too scared to remove it
-        if (!isMuted[i]) {
-          if (intellivision && selCore) {
-            immWrite(0x0b + i, (output & 0xc) << 2);
-          }
-          else {
-            immWrite(0x08 + i, output | (chan[i].curPSGMode.getEnvelope() << 2));
-          }
-        }
-        continue;
       }
       if (mfp.timer[i].timerClock >= actualPeriod && chan[i].tfx.mode == 1) {
         mfp.timer[i].timerClock -= actualPeriod;
@@ -312,7 +299,20 @@ void DivPlatformAY8910::runMFP(int runRate, int advance) {
         else {
           immWrite(0xd, ayEnvMode);
         }
-        continue;
+      }
+      if (chan[i].tfx.mode == 0) {
+        int output = ((chan[i].tfx.out) ? chan[i].outVol : (chan[i].tfx.lowBound - (15 - chan[i].outVol)));
+        output = (output <= 0) ? 0 : output; // underflow
+        output = (output >= 15) ? 15 : output; // overflow
+        output &= 15; // i don't know if i need this but i'm too scared to remove it
+        if (!isMuted[i]) {
+          if (intellivision && selCore) {
+            immWrite(0x0b + i, (output & 0xc) << 2);
+          }
+          else {
+            immWrite(0x08 + i, output | (chan[i].curPSGMode.getEnvelope() << 2));
+          }
+        }
       }
     }
   }
@@ -819,17 +819,17 @@ void DivPlatformAY8910::tick(bool sysTick) {
         immWrite(0x0c,ayEnvPeriod>>8);
       }
       int timerPeriod;
-      timerPeriod = (selCore) ? chan[i].freq  : (chan[i].freq >> 1); // MORE CORE CORRECTION!
-      if (chan[i].tfx.num > 0) {
-        timerPeriod = timerPeriod * chan[i].tfx.den / chan[i].tfx.num;
-      }
-      else {
-        timerPeriod = timerPeriod * chan[i].tfx.den;
-      }
-      // mfp timer freq calc
       switch (timerScheme) {
       case 1:
         if (chan[i].active) {
+          // mfp timer freq calc
+          timerPeriod = (clockSel || sunsoft) ? chan[i].freq : (chan[i].freq >> 1); // MORE PITCH CORRECTION!
+          if (chan[i].tfx.num > 0) {
+            timerPeriod = timerPeriod * chan[i].tfx.den / chan[i].tfx.num;
+          }
+          else {
+            timerPeriod = timerPeriod * chan[i].tfx.den;
+          }
           MFPTimer new_period = ym_period_to_mfp(timerPeriod+chan[i].tfx.offset);
           mfp.timer[i].period = new_period.period;
           mfp.timer[i].prescaler = new_period.prescaler;
