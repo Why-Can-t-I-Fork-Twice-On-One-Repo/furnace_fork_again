@@ -1435,6 +1435,8 @@ void DivPlatformAY8910::setFlags(const DivConfig& flags) {
   }
   //logI("%f, %d", tfxClock, chipClock);
 
+  stereo = flags.getBool("stereo", false);
+
   switch (flags.getInt("timerScheme", 0)) {
   case 1:
     timerScheme = 1;
@@ -1472,6 +1474,7 @@ void DivPlatformAY8910::setFlags(const DivConfig& flags) {
       break;
     case 4:
       clockSel = flags.getBool("halfClock", false);
+      stereo = false;
       ay = new ym2149_device(rate, clockSel);
       yamaha = true;
       sunsoft = false;
@@ -1506,7 +1509,6 @@ void DivPlatformAY8910::setFlags(const DivConfig& flags) {
     oscBuf[i]->setRate(rate);
   }
 
-  stereo=flags.getBool("stereo",false);
   stereoSep=flags.getInt("stereoSep",0)&255;
   switch (flags.getInt("panLaw", 0)) {
   default:
