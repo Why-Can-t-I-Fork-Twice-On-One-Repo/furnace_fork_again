@@ -767,6 +767,7 @@ void DivPlatformAY8910::tick(bool sysTick) {
     }
     if (chan[i].std.ex7.had) {
       chan[i].tfx.offset=chan[i].std.ex7.val;
+      chan[i].freqChanged = true;
     }
     if (chan[i].std.ex8.had) {
       chan[i].tfx.num=chan[i].std.ex8.val;
@@ -822,7 +823,7 @@ void DivPlatformAY8910::tick(bool sysTick) {
         immWrite(0x0b,ayEnvPeriod);
         immWrite(0x0c,ayEnvPeriod>>8);
       }
-      int timerPeriod;
+      int timerPeriod, oldPeriod;
       switch (timerScheme) {
       case 1:
         if (chan[i].active) {
@@ -845,6 +846,7 @@ void DivPlatformAY8910::tick(bool sysTick) {
         }
         break;
       default:
+        oldPeriod = chan[i].tfx.period;
         if (chan[i].tfx.num > 0) {
           timerPeriod = chan[i].freq * chan[i].tfx.den / chan[i].tfx.num;
         }
@@ -852,6 +854,9 @@ void DivPlatformAY8910::tick(bool sysTick) {
           timerPeriod = chan[i].freq * chan[i].tfx.den;
         }
         if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) chan[i].tfx.period = timerPeriod + chan[i].tfx.offset;
+        if (oldPeriod != 0 && oldPeriod != chan[i].tfx.period) {
+          chan[i].tfx.counter = chan[i].tfx.counter * (double)chan[i].tfx.period / (double)oldPeriod;
+        }
         // stupid pitch correction because:
         // YM2149 half-clock and Sunsoft 5B: timers run an octave too high
         // on AtomicSSG core timers run 2 octaves too high
