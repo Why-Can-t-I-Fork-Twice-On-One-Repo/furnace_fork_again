@@ -169,15 +169,6 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
   for (int i=0; i<3; i++) {
     if (chan[i].active && (chan[i].curPSGMode.val&16) && !(chan[i].curPSGMode.val&8)) {
       if (chan[i].tfx.mode == -1 && !isMuted[i]) {
-        /*
-        bug: if in the timer FX macro the user enables
-        and then disables PWM while there is no volume macro
-        there is now a random chance that the resulting output
-        is silent or has volume set incorrectly
-        i've tried to implement a fix, but it seems to be
-        ineffective, so...
-        TODO: actually implement a proper fix
-        */
         if (intellivision && chan[i].curPSGMode.getEnvelope()) {
           immWrite(0x08+i,(chan[i].outVol&0xc)<<2);
           continue;
@@ -190,9 +181,34 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
       // do not replace this while with an if!
       // during implementation of non-linear mixing, when this timer scheme was used
       // a DC offset would accumulate over time, causing the output to slowly go out of bounds!
-      while (chan[i].tfx.counter >= chan[i].tfx.period && chan[i].tfx.mode == 0) {
+      while (chan[i].tfx.counter >= chan[i].tfx.period) {
         chan[i].tfx.counter -= chan[i].tfx.period;
-        chan[i].tfx.out ^= 1;
+        switch (chan[i].tfx.mode) {
+          case 0:
+            // pwm
+            chan[i].tfx.out ^= 1;
+            break;
+          case 1:
+            // syncbuzzer
+            if (!isMuted[i]) {
+              if (intellivision && chan[i].curPSGMode.getEnvelope()) {
+                immWrite(0x08 + i, (chan[i].outVol & 0xc) << 2);
+              }
+              else {
+                immWrite(0x08 + i, (chan[i].outVol & 15) | ((chan[i].curPSGMode.getEnvelope()) << 2));
+              }
+            }
+            if (intellivision && selCore) {
+              immWrite(0xa, ayEnvMode);
+            }
+            else {
+              immWrite(0xd, ayEnvMode);
+            }
+            break;
+          case 2:
+          default:
+            break;
+        }
       }
       // so yeah... we need this separate from the timer logic to fix the crackling
       if (chan[i].tfx.mode == 0) {
@@ -201,7 +217,6 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
         output = (output > 15) ? 15 : output; // overflow
         output &= 15; // i don't know if i need this but i'm too scared to remove it
         if (!isMuted[i]) {
-          // TODO: ???????
           if (intellivision && selCore) {
             immWrite(0x0b + i, (output & 0xc) << 2);
           }
@@ -209,25 +224,6 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
             immWrite(0x08 + i, output | (chan[i].curPSGMode.getEnvelope() << 2));
           }
         }
-      }
-      while (chan[i].tfx.counter >= chan[i].tfx.period && chan[i].tfx.mode == 1) {
-        chan[i].tfx.counter -= chan[i].tfx.period;
-        if (!isMuted[i]) {
-          if (intellivision && chan[i].curPSGMode.getEnvelope()) {
-            immWrite(0x08 + i, (chan[i].outVol & 0xc) << 2);
-          }
-          else {
-            immWrite(0x08 + i, (chan[i].outVol & 15) | ((chan[i].curPSGMode.getEnvelope()) << 2));
-          }
-        }
-        if (intellivision && selCore) {
-          immWrite(0xa, ayEnvMode);
-        } else {
-          immWrite(0xd, ayEnvMode);
-        }
-      }
-      if (chan[i].tfx.counter >= chan[i].tfx.period && chan[i].tfx.mode == 2) {
-        chan[i].tfx.counter -= chan[i].tfx.period;
       }
     }
   }
@@ -279,25 +275,33 @@ void DivPlatformAY8910::runMFP(int runRate, int advance) {
       }
       mfp.timer[i].timerClock += counterRatio;
       int actualPeriod = (mfp.timer[i].period == 0) ? 256 * prescalers[mfp.timer[i].prescaler & 7] : mfp.timer[i].period * prescalers[mfp.timer[i].prescaler & 7];
-      if (mfp.timer[i].timerClock >= actualPeriod && chan[i].tfx.mode == 0) {
+      if (mfp.timer[i].timerClock >= actualPeriod) {
         mfp.timer[i].timerClock -= actualPeriod;
-        chan[i].tfx.out ^= 1;
-      }
-      if (mfp.timer[i].timerClock >= actualPeriod && chan[i].tfx.mode == 1) {
-        mfp.timer[i].timerClock -= actualPeriod;
-        if (!isMuted[i]) {
-          if (intellivision && chan[i].curPSGMode.getEnvelope()) {
-            immWrite(0x08 + i, (chan[i].outVol & 0xc) << 2);
-          }
-          else {
-            immWrite(0x08 + i, (chan[i].outVol & 15) | ((chan[i].curPSGMode.getEnvelope()) << 2));
-          }
-        }
-        if (intellivision && selCore) {
-          immWrite(0xa, ayEnvMode);
-        }
-        else {
-          immWrite(0xd, ayEnvMode);
+        switch (chan[i].tfx.mode) {
+          case 0:
+            // pwm
+            chan[i].tfx.out ^= 1;
+            break;
+          case 1:
+            // syncbuzzer
+            if (!isMuted[i]) {
+              if (intellivision && chan[i].curPSGMode.getEnvelope()) {
+                immWrite(0x08 + i, (chan[i].outVol & 0xc) << 2);
+              }
+              else {
+                immWrite(0x08 + i, (chan[i].outVol & 15) | ((chan[i].curPSGMode.getEnvelope()) << 2));
+              }
+            }
+            if (intellivision && selCore) {
+              immWrite(0xa, ayEnvMode);
+            }
+            else {
+              immWrite(0xd, ayEnvMode);
+            }
+            break;
+          case 2:
+          default:
+            break;
         }
       }
       if (chan[i].tfx.mode == 0) {
@@ -1426,14 +1430,12 @@ void DivPlatformAY8910::setFlags(const DivConfig& flags) {
       tfxClock = 2457600.0f;
       break;
     case -1:
-      // what the heisenbug?!
       tfxClock = flags.getInt("timerCustomClock", MIN_CUSTOM_CLOCK);
       break;
     default:
       tfxClock = chipClock;
       break;
   }
-  //logI("%f, %d", tfxClock, chipClock);
 
   stereo = flags.getBool("stereo", false);
 
