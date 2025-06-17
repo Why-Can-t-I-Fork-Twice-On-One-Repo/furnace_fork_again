@@ -673,6 +673,7 @@ class DivEngine {
   friend class DivROMExport;
   friend class DivExportAmigaValidation;
   friend class DivExportSAPR;
+  friend class DivExportSNDH;
   friend class DivExportTiuna;
   friend class DivExportZSM;
   friend class DivExportiPod;

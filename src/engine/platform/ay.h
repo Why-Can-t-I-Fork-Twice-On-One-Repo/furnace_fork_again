@@ -186,7 +186,7 @@ class DivPlatformAY8910: public DivDispatch {
     void YM2149_BuildModelVolumeTable(unsigned short volumetable[32][32][32]);
     void runDAC(int runRate=0, int advance=1);
     void runTFX(int runRate=0, int advance=1);
-    MFPTimer ym_period_to_mfp(unsigned short ym_period);
+    MFPTimer ym_period_to_mfp(unsigned short ym_period, double clock);
     void runMFP(int runRate=0, int advance=1);
     void setExtClockDiv(unsigned int eclk=COLOR_NTSC, unsigned char ediv=8);
     void acquire(short** buf, size_t len);

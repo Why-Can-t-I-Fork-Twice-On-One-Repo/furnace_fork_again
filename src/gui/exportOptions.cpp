@@ -381,6 +381,47 @@ void FurnaceGUI::drawExportROM(bool onWindow) {
       }
       break;
     }
+	case DIV_ROM_SNDH: {
+      int defaultSubsong=romConfig.getInt("defaultSubsong",MIN(e->getCurrentSubSong(),98));
+      int tickRate=romConfig.getInt("tickRate",CLAMP(e->curSubSong->hz,1,200));
+      bool loop=romConfig.getBool("loop",true);
+      int defaultSubsongNew=defaultSubsong;
+      char id[256];
+
+      if (ImGui::Checkbox(_("loop"),&loop)) {
+        altered=true;
+      }
+      if (ImGui::InputInt(_("tick Rate (Hz)"),&tickRate,1,10)) {
+        if (tickRate<1) tickRate=1;
+        if (tickRate>200) tickRate=200;
+        altered=true;
+      }
+      if (e->song.subsong[defaultSubsong]->name.empty()) {
+        snprintf(id,255,_("%d. <no name>"),defaultSubsong+1);
+      } else {
+        snprintf(id,255,"%d. %s",defaultSubsong+1,e->song.subsong[defaultSubsong]->name.c_str());
+      }
+      if (ImGui::BeginCombo(_("default subsong"),id)) {
+        for (int i=0; i<(int)MIN(e->song.subsong.size(),99); i++) {
+          if (e->song.subsong[i]->name.empty()) {
+            snprintf(id,255,_("%d. <no name>"),i+1);
+          } else {
+            snprintf(id,255,"%d. %s",i+1,e->song.subsong[i]->name.c_str());
+          }
+          if (ImGui::Selectable(id,i==defaultSubsong)) {
+            defaultSubsongNew=i;
+            altered=true;
+          }
+        }
+        ImGui::EndCombo();
+      }
+      if (altered) {
+        romConfig.set("defaultSubsong",defaultSubsongNew);
+        romConfig.set("tickRate",tickRate);
+        romConfig.set("loop",loop);
+      }
+      break;
+    }
     case DIV_ROM_ABSTRACT:
       ImGui::TextWrapped("%s",_("select a target from the menu at the top of this dialog."));
       break;

@@ -192,7 +192,7 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
             // syncbuzzer
             if (!isMuted[i]) {
               if (intellivision && chan[i].curPSGMode.getEnvelope()) {
-                immWrite(0x0b + i, (chan[i].outVol & 0xc) << 2);
+                immWrite(0x08 + i, (chan[i].outVol & 0xc) << 2);
               }
               else {
                 immWrite(0x08 + i, (chan[i].outVol & 15) | ((chan[i].curPSGMode.getEnvelope()) << 2));
@@ -229,7 +229,7 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
   }
 }
 
-DivPlatformAY8910::MFPTimer DivPlatformAY8910::ym_period_to_mfp(unsigned short ym_period) {
+DivPlatformAY8910::MFPTimer DivPlatformAY8910::ym_period_to_mfp(unsigned short ym_period, double clock) {
   if (ym_period == 0) {
     DivPlatformAY8910::MFPTimer empty;
     empty.period = 0;
@@ -242,11 +242,11 @@ DivPlatformAY8910::MFPTimer DivPlatformAY8910::ym_period_to_mfp(unsigned short y
   DivPlatformAY8910::MFPTimer best;
   for (int presc_idx = 0; presc_idx < 7; ++presc_idx) {
     int presc = MFP_PRESCALERS[presc_idx];
-    double ideal_data = ym_period_sec * tfxClock / presc;
+    double ideal_data = ym_period_sec * clock / presc;
     int data = (int)(round(ideal_data));
     if (data < 1) data = 1;
     if (data > 256) data = 256;
-    double actual_period = (data * presc) / tfxClock;
+    double actual_period = (data * presc) / clock;
     double error = fabs(actual_period - ym_period_sec);
     if (error < min_error) {
       min_error = error;
@@ -764,6 +764,7 @@ void DivPlatformAY8910::tick(bool sysTick) {
           chan[i].tfx.mode = -1; // this is a workaround!
           break;
       }
+      if (dumpWrites) addWrite(0x10003 + i, chan[i].tfx.mode);
     }
     if (chan[i].std.ex7.had) {
       chan[i].tfx.offset=chan[i].std.ex7.val;
@@ -773,11 +774,13 @@ void DivPlatformAY8910::tick(bool sysTick) {
       chan[i].tfx.num=chan[i].std.ex8.val;
       chan[i].freqChanged=true;
       if (!chan[i].std.fms.will) chan[i].tfx.den=1;
+      chan[i].freqChanged = true;
     }
     if (chan[i].std.fms.had) {
       chan[i].tfx.den=chan[i].std.fms.val;
       chan[i].freqChanged=true;
       if (!chan[i].std.ex8.will) chan[i].tfx.num=1;
+      chan[i].freqChanged = true;
     }
     if (chan[i].std.ams.had) {
       chan[i].tfx.lowBound=chan[i].std.ams.val;
@@ -823,7 +826,8 @@ void DivPlatformAY8910::tick(bool sysTick) {
         immWrite(0x0b,ayEnvPeriod);
         immWrite(0x0c,ayEnvPeriod>>8);
       }
-      int timerPeriod, oldPeriod;
+
+      long timerPeriod, oldPeriod;
       switch (timerScheme) {
       case 1:
         if (chan[i].active) {
@@ -835,10 +839,17 @@ void DivPlatformAY8910::tick(bool sysTick) {
           else {
             timerPeriod = timerPeriod * chan[i].tfx.den;
           }
-          MFPTimer new_period = ym_period_to_mfp(timerPeriod+chan[i].tfx.offset);
+          MFPTimer new_period = ym_period_to_mfp(timerPeriod + chan[i].tfx.offset, tfxClock);
           mfp.timer[i].period = new_period.period;
           mfp.timer[i].prescaler = new_period.prescaler;
           if (chan[i].keyOn) mfp.timer[i].timerClock = 0; // we need this for deterministic playback...
+          // dump MFP period
+          if (dumpWrites) {
+            // 2.4576MHz is the only clock that can ever actually be used when exporting SNDH
+            MFPTimer dump_period = ym_period_to_mfp(timerPeriod + chan[i].tfx.offset, 2457600.0f);
+            long mfpPeriod = (((dump_period.prescaler) << 8) | dump_period.period) << 8;
+            addWrite(0x10000 + i, mfpPeriod);
+          }
         }
         else {
           mfp.timer[i].period = 0;
@@ -846,28 +857,51 @@ void DivPlatformAY8910::tick(bool sysTick) {
         }
         break;
       default:
+        /*if (chan[i].freqChanged && chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
+          long timerPeriod = ((long)chan[i].freq << 8) * chan[i].tfx.den / MAX(chan[i].tfx.num, 1);
+          timerPeriod += chan[i].tfx.offset << 8;
+          if (dumpWrites) addWrite(0x30000 + i, timerPeriod);
+          chan[i].tfx.period = timerPeriod >> 8;
+          // stupid pitch correction because:
+          // YM2149 half-clock and Sunsoft 5B: timers run an octave too high
+          // on AtomicSSG core timers run 2 octaves too highAdd commentMore actions
+          if (clockSel || sunsoft) chan[i].tfx.period *= 2;
+          if (selCore && !intellivision) chan[i].tfx.period *= 4;
+        }*/
         oldPeriod = chan[i].tfx.period;
-        if (chan[i].tfx.num > 0) {
+        /*if (chan[i].tfx.num > 0) {
           timerPeriod = chan[i].freq * chan[i].tfx.den / chan[i].tfx.num;
         }
         else {
           timerPeriod = chan[i].freq * chan[i].tfx.den;
+        }*/
+        if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
+          timerPeriod=((long)chan[i].freq<<8)*chan[i].tfx.den/MAX(chan[i].tfx.num,1);
+          timerPeriod += chan[i].tfx.offset << 8;
+          //logI("%d: %x", i, timerPeriod);
+          //if (dumpWrites) addWrite(0x10000 + i, timerPeriod);
+          chan[i].tfx.period = timerPeriod >> 8;
+          if (oldPeriod != 0 && oldPeriod != chan[i].tfx.period) {
+            chan[i].tfx.counter = chan[i].tfx.counter * (double)chan[i].tfx.period / (double)oldPeriod;
+          }
+          MFPTimer new_period = ym_period_to_mfp((unsigned short)chan[i].tfx.period>>1, 2457600.0f);
+          long mfpPeriod = (((new_period.prescaler) << 8) | new_period.period) << 8;
+          if (dumpWrites) addWrite(0x10000 + i, mfpPeriod);
+          // stupid pitch correction because:
+          // YM2149 half-clock and Sunsoft 5B: timers run an octave too high
+          // on AtomicSSG core timers run 2 octaves too high
+          if (clockSel || sunsoft) chan[i].tfx.period = chan[i].tfx.period * 2;
+          if (selCore && !intellivision) chan[i].tfx.period = chan[i].tfx.period * 4;
         }
-        if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) chan[i].tfx.period = timerPeriod + chan[i].tfx.offset;
-        if (oldPeriod != 0 && oldPeriod != chan[i].tfx.period) {
-          chan[i].tfx.counter = chan[i].tfx.counter * (double)chan[i].tfx.period / (double)oldPeriod;
-        }
-        // stupid pitch correction because:
-        // YM2149 half-clock and Sunsoft 5B: timers run an octave too high
-        // on AtomicSSG core timers run 2 octaves too high
-        if (clockSel || sunsoft) chan[i].tfx.period = chan[i].tfx.period * 2;
-        if (selCore && !intellivision) chan[i].tfx.period = chan[i].tfx.period * 4;
         break;
       }
+      
       if (chan[i].keyOn) chan[i].keyOn = false;
       if (chan[i].keyOff) chan[i].keyOff = false;
       chan[i].freqChanged=false;
     }
+    int lowBound = CLAMP((chan[i].tfx.lowBound - (15 - chan[i].outVol)),0,15);
+    if (dumpWrites) addWrite(0x10006 + i, lowBound);
   }
 
   updateOutSel();
@@ -1082,6 +1116,7 @@ int DivPlatformAY8910::dispatch(DivCommand c) {
       if (!(chan[c.chan].nextPSGMode.val&8)) {
         chan[c.chan].nextPSGMode.val|=16;
         chan[c.chan].tfx.mode=(((c.value&0xf0)>>4)&3)-1;
+        if (dumpWrites) addWrite(0x10003 + c.chan, chan[c.chan].tfx.mode);
         if ((c.value&15)<16) {
           chan[c.chan].nextPSGMode.val=(c.value+1)&7;
           chan[c.chan].nextPSGMode.val|=chan[c.chan].curPSGMode.val&16;

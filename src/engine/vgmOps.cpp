@@ -1027,9 +1027,11 @@ void DivEngine::performVGMWrite(SafeWriter* w, DivSystem sys, DivRegWrite& write
       break;
     case DIV_SYSTEM_AY8910:
     case DIV_SYSTEM_AY8930:
-      w->writeC(0xa0);
-      w->writeC(baseAddr2|(write.addr&0xff));
-      w->writeC(write.val);
+      if (write.addr<0x100) { // ignore timer fx hints
+        w->writeC(0xa0);
+        w->writeC(baseAddr2|write.addr);
+        w->writeC(write.val);
+      }
       break;
     case DIV_SYSTEM_SAA1099:
       w->writeC(0xbd);

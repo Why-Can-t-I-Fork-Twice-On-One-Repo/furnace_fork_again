@@ -21,6 +21,7 @@
 
 #include "export/amigaValidation.h"
 #include "export/sapr.h"
+#include "export/sndh.h"
 #include "export/tiuna.h"
 #include "export/zsm.h"
 #include "export/ipod.h"
@@ -46,6 +47,9 @@ DivROMExport* DivEngine::buildROM(DivROMExportOptions sys) {
       break;
     case DIV_ROM_GRUB:
       exporter=new DivExportGRUB;
+      break;
+	case DIV_ROM_SNDH:
+      exporter=new DivExportSNDH;
       break;
     default:
       exporter=new DivROMExport;

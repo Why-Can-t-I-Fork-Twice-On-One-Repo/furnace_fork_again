@@ -142,4 +142,16 @@ void DivEngine::registerROMExports() {
     },
     false, DIV_REQPOL_ANY
   );
+  
+  romExportDefs[DIV_ROM_SNDH]=new DivROMExportDef(
+    "Atari ST SNDH", "Natt Akuma",
+    "for use with Atari ST YM2149 songs.\n"
+    "supports timer FX through native timer interrupts.\n"
+    "Uses compressed register dump format for now",
+    "SNDH files", ".sndh",
+    {
+      DIV_SYSTEM_AY8910
+    },
+    false, DIV_REQPOL_EXACT
+  );
 }

@@ -820,10 +820,13 @@ src/engine/platform/dummy.cpp
 src/engine/export/abstract.cpp
 src/engine/export/amigaValidation.cpp
 src/engine/export/sapr.cpp
+src/engine/export/sndh.cpp
 src/engine/export/tiuna.cpp
 src/engine/export/zsm.cpp
 src/engine/export/ipod.cpp
 src/engine/export/grub.cpp
+
+src/engine/export/player_sndh_regdump.cpp
 
 src/engine/effect/abstract.cpp
 src/engine/effect/dummy.cpp
