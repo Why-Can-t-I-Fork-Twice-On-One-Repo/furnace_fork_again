@@ -857,29 +857,10 @@ void DivPlatformAY8910::tick(bool sysTick) {
         }
         break;
       default:
-        /*if (chan[i].freqChanged && chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
-          long timerPeriod = ((long)chan[i].freq << 8) * chan[i].tfx.den / MAX(chan[i].tfx.num, 1);
-          timerPeriod += chan[i].tfx.offset << 8;
-          if (dumpWrites) addWrite(0x30000 + i, timerPeriod);
-          chan[i].tfx.period = timerPeriod >> 8;
-          // stupid pitch correction because:
-          // YM2149 half-clock and Sunsoft 5B: timers run an octave too high
-          // on AtomicSSG core timers run 2 octaves too highAdd commentMore actions
-          if (clockSel || sunsoft) chan[i].tfx.period *= 2;
-          if (selCore && !intellivision) chan[i].tfx.period *= 4;
-        }*/
         oldPeriod = chan[i].tfx.period;
-        /*if (chan[i].tfx.num > 0) {
-          timerPeriod = chan[i].freq * chan[i].tfx.den / chan[i].tfx.num;
-        }
-        else {
-          timerPeriod = chan[i].freq * chan[i].tfx.den;
-        }*/
         if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
           timerPeriod=((long)chan[i].freq<<8)*chan[i].tfx.den/MAX(chan[i].tfx.num,1);
           timerPeriod += chan[i].tfx.offset << 8;
-          //logI("%d: %x", i, timerPeriod);
-          //if (dumpWrites) addWrite(0x10000 + i, timerPeriod);
           chan[i].tfx.period = timerPeriod >> 8;
           if (oldPeriod != 0 && oldPeriod != chan[i].tfx.period) {
             chan[i].tfx.counter = chan[i].tfx.counter * (double)chan[i].tfx.period / (double)oldPeriod;
