@@ -97,7 +97,6 @@ std::vector<unsigned char> DivExportSNDH::runSubsong(int subsong, int& totalTick
   short regs[2][22];
   bool done=false;
   int totalWait=0;
-  int chipClock=e->disCont[psgSys].dispatch->chipClock;
 
   e->changeSong(subsong);
   e->curOrder=0;
@@ -111,7 +110,6 @@ std::vector<unsigned char> DivExportSNDH::runSubsong(int subsong, int& totalTick
   memset(timerHints,0,sizeof(timerHints));
 
   DivConfig sysFlags = e->song.systemFlags[psgSys];
-  int timerScheme = sysFlags.getInt("timerScheme",0);
 
   while (!done) {
     if (e->nextTick(false,true) || !e->playing) {
