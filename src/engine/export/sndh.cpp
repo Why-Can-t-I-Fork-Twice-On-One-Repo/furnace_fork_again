@@ -157,7 +157,7 @@ std::vector<unsigned char> DivExportSNDH::runSubsong(int subsong, int& totalTick
         int mfpPeriod = period & 0xff;
         int mfpPrescaler = (period & 0xff00) >> 8;
         // we enforce a hard limit of 51.2kHz for the timers (1/4 prescaler, period 12)
-        if (mfpPrescaler == 1) CLAMP_VAR(mfpPrescaler, 12, 255)
+        if (mfpPrescaler == 1) CLAMP_VAR(mfpPeriod, 12, 255)
         regs[0][16 + i] = mfpPeriod; // data register
         regs[0][19 + i] = mfpPrescaler | (mode << 3); // prescaler
       }
