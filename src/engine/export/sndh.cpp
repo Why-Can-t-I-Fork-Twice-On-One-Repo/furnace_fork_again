@@ -154,8 +154,12 @@ std::vector<unsigned char> DivExportSNDH::runSubsong(int subsong, int& totalTick
         int mode=timerHints[i+3]==0?(timerHints[i+6]<<1):1;
         // for sake of convenience, we only have to use the MFP converted values from dispatch
         int period = (long)timerHints[i]>>8;
-        regs[0][16 + i] = period&0xff; // data register
-        regs[0][19 + i] = ((period & 0xff00) >> 8) | (mode << 3); // prescaler
+        int mfpPeriod = period & 0xff;
+        int mfpPrescaler = (period & 0xff00) >> 8;
+        // we enforce a hard limit of 51.2kHz for the timers (1/4 prescaler, period 12)
+        if (mfpPrescaler == 1) CLAMP_VAR(mfpPrescaler, 12, 255)
+        regs[0][16 + i] = mfpPeriod; // data register
+        regs[0][19 + i] = mfpPrescaler | (mode << 3); // prescaler
       }
     }
     // deduplicate
@@ -242,7 +246,7 @@ void DivExportSNDH::run() {
   if (sysFlags.getInt("clockSel",0)!=3 || sysFlags.getBool("halfClock",false)) {
     logAppend("Warning: clock rate is not 2MHz, playback pitch will be incorrect");
   }
-  if ((sysFlags.getInt("chipType", 0) != 1) || (sysFlags.getInt("chipType", 0) != 4)) {
+  if ((sysFlags.getInt("chipType", 0) != 1) && (sysFlags.getInt("chipType", 0) != 4)) {
     logAppend("Warning: PSG type is not YM2149");
   }
 
