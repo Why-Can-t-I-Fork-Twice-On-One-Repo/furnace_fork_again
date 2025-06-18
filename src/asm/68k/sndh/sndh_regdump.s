@@ -30,10 +30,10 @@ init:
     move.l  a1,(irq_d1+10)-(curpos+2)(a0)
     move.l  a1,$110
     ; enable irqs
-    or.b    #%00100001,$fffffa07
-    or.b    #%00100001,$fffffa13
-    bset    #4,$fffffa09
-    bset    #4,$fffffa15
+    or.b    #%00100001,$fffffa07 ; timer A, B interrupt enable
+    or.b    #%00100001,$fffffa13 ; unmask timer A, B interrupts
+    bset    #4,$fffffa09 ; timer D interrupt enable
+    bset    #4,$fffffa15 ; unmask timer D interrupts
     ; clear vars
     lea     vars(pc),a0
     moveq.l #vars_size/4,d0

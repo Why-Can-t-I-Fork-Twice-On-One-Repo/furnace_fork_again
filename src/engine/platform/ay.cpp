@@ -764,6 +764,7 @@ void DivPlatformAY8910::tick(bool sysTick) {
           chan[i].tfx.mode = -1; // this is a workaround!
           break;
       }
+      usesTimer[i] = true;
       if (dumpWrites) addWrite(0x10003 + i, chan[i].tfx.mode);
     }
     if (chan[i].std.ex7.had) {
@@ -883,6 +884,7 @@ void DivPlatformAY8910::tick(bool sysTick) {
     }
     int lowBound = CLAMP((chan[i].tfx.lowBound - (15 - chan[i].outVol)),0,15);
     if (dumpWrites) addWrite(0x10006 + i, lowBound);
+    if (!usesTimer[i] && dumpWrites) addWrite(0x10003 + i, -1);
   }
 
   updateOutSel();
@@ -1556,6 +1558,7 @@ int DivPlatformAY8910::init(DivEngine* p, int channels, int sugRate, const DivCo
   for (int i=0; i<3; i++) {
     isMuted[i]=false;
     oscBuf[i]=new DivDispatchOscBuffer;
+    usesTimer[i]=false;
   }
   ay=NULL;
   setFlags(flags);

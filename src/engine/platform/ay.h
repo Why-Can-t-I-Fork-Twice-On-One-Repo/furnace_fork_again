@@ -121,7 +121,7 @@ class DivPlatformAY8910: public DivDispatch {
       MFP():
         timer{} {}
     };
-
+    
     MFP mfp;
     Channel chan[3];
     bool isMuted[3];
@@ -137,6 +137,7 @@ class DivPlatformAY8910: public DivDispatch {
     DivDispatchOscBuffer* oscBuf[3];
     unsigned char regPool[16];
     unsigned char lastBusy;
+    bool usesTimer[3]; // one-shot, set if timer FX is used and never reset!
   
     unsigned char sampleBank;
     unsigned char stereoSep;

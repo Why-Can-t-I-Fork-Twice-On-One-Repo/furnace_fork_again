@@ -246,8 +246,14 @@ void DivExportSNDH::run() {
   if (sysFlags.getInt("clockSel",0)!=3 || sysFlags.getBool("halfClock",false)) {
     logAppend("Warning: clock rate is not 2MHz, playback pitch will be incorrect");
   }
-  if ((sysFlags.getInt("chipType", 0) != 1) && (sysFlags.getInt("chipType", 0) != 4)) {
+  if (sysFlags.getInt("chipType",0)!=1 && sysFlags.getInt("chipType",0)!=4) {
     logAppend("Warning: PSG type is not YM2149");
+  }
+  if (sysFlags.getInt("timerScheme",1)!=1) {
+    logAppend("Warning: timer scheme is not MFP, timer effects will sound different");
+  }
+  if (sysFlags.getInt("timerClock",1)!=1) {
+    logAppend("Warning: timer clock is not 2.4576MHz, timer effect speed will be incorrect");
   }
 
   std::vector<std::vector<unsigned char>> data;
