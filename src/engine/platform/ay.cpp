@@ -786,6 +786,10 @@ void DivPlatformAY8910::tick(bool sysTick) {
     if (chan[i].std.ams.had) {
       chan[i].tfx.lowBound=chan[i].std.ams.val;
     }
+    if (chan[i].std.fb.had) {
+      chan[i].tfx.arp=CLAMP(chan[i].std.fb.val,-16,15);
+      chan[i].freqChanged = true;
+    }
     if (chan[i].freqChanged || chan[i].keyOn || chan[i].keyOff) {
       chan[i].freq=parent->calcFreq(chan[i].baseFreq,chan[i].pitch,chan[i].fixedArp?chan[i].baseNoteOverride:chan[i].arpOff,chan[i].fixedArp,true,0,chan[i].pitch2,chipClock,CHIP_DIVIDER);
       if (chan[i].dac.furnaceDAC) {
@@ -828,17 +832,18 @@ void DivPlatformAY8910::tick(bool sysTick) {
         immWrite(0x0c,ayEnvPeriod>>8);
       }
 
-      long timerPeriod, oldPeriod;
+      int timerPeriod, oldPeriod;
       switch (timerScheme) {
       case 1:
         if (chan[i].active) {
           // mfp timer freq calc
           timerPeriod = (clockSel || sunsoft) ? chan[i].freq : (chan[i].freq >> 1); // MORE PITCH CORRECTION!
+          timerPeriod = floor((double)timerPeriod / pow(2, (double)chan[i].tfx.arp / 12));
           if (chan[i].tfx.num > 0) {
-            timerPeriod = timerPeriod * chan[i].tfx.den / chan[i].tfx.num;
+            timerPeriod *= chan[i].tfx.den / chan[i].tfx.num;
           }
           else {
-            timerPeriod = timerPeriod * chan[i].tfx.den;
+            timerPeriod *= chan[i].tfx.den;
           }
           MFPTimer new_period = ym_period_to_mfp(timerPeriod + chan[i].tfx.offset, tfxClock);
           mfp.timer[i].period = new_period.period;
@@ -860,9 +865,10 @@ void DivPlatformAY8910::tick(bool sysTick) {
       default:
         oldPeriod = chan[i].tfx.period;
         if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
-          timerPeriod=((long)chan[i].freq<<8)*chan[i].tfx.den/MAX(chan[i].tfx.num,1);
-          timerPeriod += chan[i].tfx.offset << 8;
-          chan[i].tfx.period = timerPeriod >> 8;
+          timerPeriod=(chan[i].freq)*chan[i].tfx.den/MAX(chan[i].tfx.num,1);
+          timerPeriod=floor((double)timerPeriod*pow(2, (double)chan[i].tfx.arp / 12));
+          timerPeriod += chan[i].tfx.offset;
+          chan[i].tfx.period = timerPeriod;
           if (oldPeriod != 0 && oldPeriod != chan[i].tfx.period) {
             chan[i].tfx.counter = chan[i].tfx.counter * (double)chan[i].tfx.period / (double)oldPeriod;
           }
