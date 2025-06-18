@@ -837,24 +837,22 @@ void DivPlatformAY8910::tick(bool sysTick) {
       case 1:
         if (chan[i].active) {
           // mfp timer freq calc
-          timerPeriod = (clockSel || sunsoft) ? chan[i].freq : (chan[i].freq >> 1); // MORE PITCH CORRECTION!
-          timerPeriod = floor((double)timerPeriod / pow(2, (double)chan[i].tfx.arp / 12));
-          if (chan[i].tfx.num > 0) {
-            timerPeriod *= chan[i].tfx.den / chan[i].tfx.num;
-          }
-          else {
-            timerPeriod *= chan[i].tfx.den;
-          }
-          MFPTimer new_period = ym_period_to_mfp(timerPeriod + chan[i].tfx.offset, tfxClock);
-          mfp.timer[i].period = new_period.period;
-          mfp.timer[i].prescaler = new_period.prescaler;
-          if (chan[i].keyOn) mfp.timer[i].timerClock = 0; // we need this for deterministic playback...
-          // dump MFP period
-          if (dumpWrites) {
-            // 2.4576MHz is the only clock that can ever actually be used when exporting SNDH
-            MFPTimer dump_period = ym_period_to_mfp(timerPeriod + chan[i].tfx.offset, 2457600.0f);
-            long mfpPeriod = (((dump_period.prescaler) << 8) | dump_period.period) << 8;
-            addWrite(0x10000 + i, mfpPeriod);
+          if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
+            timerPeriod = (clockSel || sunsoft) ? chan[i].freq : (chan[i].freq >> 1); // MORE PITCH CORRECTION!
+            timerPeriod *= ((double)chan[i].tfx.den / MAX((double)chan[i].tfx.num, 1));
+            timerPeriod = floor((double)timerPeriod / pow(2, (double)chan[i].tfx.arp / 12));;
+            timerPeriod += chan[i].tfx.offset;
+            MFPTimer new_period = ym_period_to_mfp(timerPeriod, tfxClock);
+            mfp.timer[i].period = new_period.period;
+            mfp.timer[i].prescaler = new_period.prescaler;
+            if (chan[i].keyOn) mfp.timer[i].timerClock = 0; // we need this for deterministic playback...
+            // dump MFP period
+            if (dumpWrites) {
+              // 2.4576MHz is the only clock that can ever actually be used when exporting SNDH
+              MFPTimer dump_period = ym_period_to_mfp(timerPeriod + chan[i].tfx.offset, 2457600.0f);
+              long mfpPeriod = (((dump_period.prescaler) << 8) | dump_period.period) << 8;
+              addWrite(0x10000 + i, mfpPeriod);
+            }
           }
         }
         else {
@@ -866,8 +864,8 @@ void DivPlatformAY8910::tick(bool sysTick) {
         oldPeriod = chan[i].tfx.period;
         if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
           timerPeriod=(chan[i].freq)*chan[i].tfx.den/MAX(chan[i].tfx.num,1);
-          timerPeriod=floor((double)timerPeriod*pow(2, (double)chan[i].tfx.arp / 12));
-          timerPeriod += chan[i].tfx.offset;
+          timerPeriod=floor((double)timerPeriod/pow(2, (double)chan[i].tfx.arp / 12));
+          timerPeriod+=chan[i].tfx.offset;
           chan[i].tfx.period = timerPeriod;
           if (oldPeriod != 0 && oldPeriod != chan[i].tfx.period) {
             chan[i].tfx.counter = chan[i].tfx.counter * (double)chan[i].tfx.period / (double)oldPeriod;
