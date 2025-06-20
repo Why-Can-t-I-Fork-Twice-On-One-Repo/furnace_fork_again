@@ -785,8 +785,6 @@ void DivPlatformAY8910::tick(bool sysTick) {
     }
     if (chan[i].std.ams.had) {
       chan[i].tfx.lowBound=chan[i].std.ams.val;
-      int lowBound = CLAMP((chan[i].tfx.lowBound - (15 - chan[i].outVol)), 0, 15);
-      if (dumpWrites) addWrite(0x10006 + i, lowBound);
     }
     if (chan[i].std.fb.had) {
       chan[i].tfx.arp=CLAMP(chan[i].std.fb.val,-16,15);
@@ -837,24 +835,22 @@ void DivPlatformAY8910::tick(bool sysTick) {
       int timerPeriod, oldPeriod;
       switch (timerScheme) {
       case 1:
-        if (chan[i].active) {
-          // mfp timer freq calc
-          if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
-            timerPeriod = (clockSel || sunsoft) ? chan[i].freq : (chan[i].freq >> 1); // MORE PITCH CORRECTION!
-            timerPeriod *= ((double)chan[i].tfx.den / MAX((double)chan[i].tfx.num, 1));
-            timerPeriod = floor((double)timerPeriod / pow(2, (double)chan[i].tfx.arp / 12));;
-            timerPeriod += chan[i].tfx.offset;
-            MFPTimer new_period = ym_period_to_mfp(timerPeriod, tfxClock);
-            mfp.timer[i].period = new_period.period;
-            mfp.timer[i].prescaler = new_period.prescaler;
-            if (chan[i].keyOn) mfp.timer[i].timerClock = 0; // we need this for deterministic playback...
-            // dump MFP period
-            if (dumpWrites) {
-              // 2.4576MHz is the only clock that can ever actually be used when exporting SNDH
-              MFPTimer dump_period = ym_period_to_mfp(timerPeriod, 2457600.0f);
-              long mfpPeriod = (((dump_period.prescaler) << 8) | dump_period.period) << 8;
-              addWrite(0x10000 + i, mfpPeriod);
-            }
+        // mfp timer freq calc
+        if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
+          timerPeriod = (clockSel || sunsoft) ? chan[i].freq : (chan[i].freq >> 1); // MORE PITCH CORRECTION!
+          timerPeriod *= ((double)chan[i].tfx.den / MAX((double)chan[i].tfx.num, 1));
+          timerPeriod = floor((double)timerPeriod / pow(2, (double)chan[i].tfx.arp / 12));;
+          timerPeriod += chan[i].tfx.offset;
+          MFPTimer new_period = ym_period_to_mfp(timerPeriod, tfxClock);
+          mfp.timer[i].period = new_period.period;
+          mfp.timer[i].prescaler = new_period.prescaler;
+          if (chan[i].keyOn) mfp.timer[i].timerClock = 0; // we need this for deterministic playback...
+          // dump MFP period
+          if (dumpWrites) {
+            // 2.4576MHz is the only clock that can ever actually be used when exporting SNDH
+            MFPTimer dump_period = ym_period_to_mfp(timerPeriod, 2457600.0f);
+            long mfpPeriod = (((dump_period.prescaler) << 8) | dump_period.period) << 8;
+            addWrite(0x10000 + i, mfpPeriod);
           }
         }
         break;
@@ -879,12 +875,14 @@ void DivPlatformAY8910::tick(bool sysTick) {
         }
         break;
       }
-      if (!usesTimer[i] && dumpWrites) addWrite(0x10003 + i, -1);
       
       if (chan[i].keyOn) chan[i].keyOn = false;
       if (chan[i].keyOff) chan[i].keyOff = false;
       chan[i].freqChanged=false;
     }
+    int lowBound = CLAMP((chan[i].tfx.lowBound - (15 - chan[i].outVol)), 0, 15);
+    if (dumpWrites) addWrite(0x10006 + i, lowBound);
+    if (!usesTimer[i] && dumpWrites) addWrite(0x10003 + i, -1);
   }
 
   updateOutSel();
