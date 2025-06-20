@@ -785,6 +785,8 @@ void DivPlatformAY8910::tick(bool sysTick) {
     }
     if (chan[i].std.ams.had) {
       chan[i].tfx.lowBound=chan[i].std.ams.val;
+      int lowBound = CLAMP((chan[i].tfx.lowBound - (15 - chan[i].outVol)), 0, 15);
+      if (dumpWrites) addWrite(0x10006 + i, lowBound);
     }
     if (chan[i].std.fb.had) {
       chan[i].tfx.arp=CLAMP(chan[i].std.fb.val,-16,15);
@@ -849,15 +851,11 @@ void DivPlatformAY8910::tick(bool sysTick) {
             // dump MFP period
             if (dumpWrites) {
               // 2.4576MHz is the only clock that can ever actually be used when exporting SNDH
-              MFPTimer dump_period = ym_period_to_mfp(timerPeriod + chan[i].tfx.offset, 2457600.0f);
+              MFPTimer dump_period = ym_period_to_mfp(timerPeriod, 2457600.0f);
               long mfpPeriod = (((dump_period.prescaler) << 8) | dump_period.period) << 8;
               addWrite(0x10000 + i, mfpPeriod);
             }
           }
-        }
-        else {
-          mfp.timer[i].period = 0;
-          mfp.timer[i].prescaler = 0;
         }
         break;
       default:
@@ -881,14 +879,12 @@ void DivPlatformAY8910::tick(bool sysTick) {
         }
         break;
       }
+      if (!usesTimer[i] && dumpWrites) addWrite(0x10003 + i, -1);
       
       if (chan[i].keyOn) chan[i].keyOn = false;
       if (chan[i].keyOff) chan[i].keyOff = false;
       chan[i].freqChanged=false;
     }
-    int lowBound = CLAMP((chan[i].tfx.lowBound - (15 - chan[i].outVol)),0,15);
-    if (dumpWrites) addWrite(0x10006 + i, lowBound);
-    if (!usesTimer[i] && dumpWrites) addWrite(0x10003 + i, -1);
   }
 
   updateOutSel();
