@@ -843,6 +843,12 @@ void DivPlatformAY8910::tick(bool sysTick) {
           timerPeriod += chan[i].tfx.offset;
           MFPTimer new_period = ym_period_to_mfp(timerPeriod, tfxClock);
           mfp.timer[i].period = new_period.period;
+          if (mfp.timer[i].prescaler != new_period.prescaler) {
+            // lazy way to emulate MFP prescaler behaviour... but what am i going to do about it?
+            // add the MFP emulator from Hatari? hah! good luck, that thing has a bajillion wires on it that need to be detached
+            const unsigned char prescalers[8] = { 0, 4, 10, 16, 50, 64, 100, 200 };
+            mfp.timer[i].timerClock = new_period.period * prescalers[new_period.prescaler&7];
+          }
           mfp.timer[i].prescaler = new_period.prescaler;
           if (chan[i].keyOn) mfp.timer[i].timerClock = 0; // we need this for deterministic playback...
           // dump MFP period
