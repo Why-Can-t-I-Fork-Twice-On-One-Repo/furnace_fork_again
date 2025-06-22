@@ -834,52 +834,59 @@ void DivPlatformAY8910::tick(bool sysTick) {
 
       int timerPeriod, oldPeriod;
       switch (timerScheme) {
-      case 1:
-        // mfp timer freq calc
-        if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
-          timerPeriod = (clockSel || sunsoft) ? chan[i].freq : (chan[i].freq >> 1); // MORE PITCH CORRECTION!
-          timerPeriod *= ((double)chan[i].tfx.den / MAX((double)chan[i].tfx.num, 1));
-          timerPeriod = floor((double)timerPeriod / pow(2, (double)chan[i].tfx.arp / 12));;
-          timerPeriod += chan[i].tfx.offset;
-          MFPTimer new_period = ym_period_to_mfp(timerPeriod, tfxClock);
-          mfp.timer[i].period = new_period.period;
-          if (mfp.timer[i].prescaler != new_period.prescaler) {
-            // lazy way to emulate MFP prescaler behaviour... but what am i going to do about it?
-            // add the MFP emulator from Hatari? hah! good luck, that thing has a bajillion wires on it that need to be detached
+        case 1: {
+          // mfp timer freq calc
+          oldPeriod = mfp.timer[i].period;
+          int oldScaler = mfp.timer[i].prescaler;
+          if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
+            timerPeriod = (clockSel || sunsoft) ? chan[i].freq : (chan[i].freq >> 1); // MORE PITCH CORRECTION!
+            timerPeriod *= ((double)chan[i].tfx.den / MAX((double)chan[i].tfx.num, 1));
+            timerPeriod = floor((double)timerPeriod / pow(2, (double)chan[i].tfx.arp / 12));
+            timerPeriod += chan[i].tfx.offset;
+            MFPTimer new_period = ym_period_to_mfp(timerPeriod, tfxClock);
             const unsigned char prescalers[8] = { 0, 4, 10, 16, 50, 64, 100, 200 };
-            mfp.timer[i].timerClock = new_period.period * prescalers[new_period.prescaler&7];
+            if (mfp.timer[i].prescaler != new_period.prescaler) {
+              // lazy way to emulate MFP prescaler behaviour... but what am i going to do about it?
+              // add the MFP emulator from Hatari? hah! good luck, that thing has a bajillion wires on it that need to be detached
+              mfp.timer[i].timerClock = new_period.period * prescalers[new_period.prescaler&7];              
+            }
+            mfp.timer[i].period = new_period.period;
+            if (oldPeriod != 0 && mfp.timer[i].period != oldPeriod) {
+              mfp.timer[i].timerClock = mfp.timer[i].timerClock * (double)(mfp.timer[i].period * prescalers[new_period.prescaler & 7]) / (double)(oldPeriod * prescalers[oldScaler & 7]);
+            }
+            mfp.timer[i].prescaler = new_period.prescaler;
+            if (chan[i].keyOn) mfp.timer[i].timerClock = 0; // we need this for deterministic playback...
+            // dump MFP period
+            if (dumpWrites) {
+              // 2.4576MHz is the only clock that can ever actually be used when exporting SNDH
+              MFPTimer dump_period = ym_period_to_mfp(timerPeriod, 2457600.0f);
+              long mfpPeriod = (((dump_period.prescaler) << 8) | dump_period.period) << 8;
+              addWrite(0x10000 + i, mfpPeriod);
+            }
           }
-          mfp.timer[i].prescaler = new_period.prescaler;
-          if (chan[i].keyOn) mfp.timer[i].timerClock = 0; // we need this for deterministic playback...
-          // dump MFP period
-          if (dumpWrites) {
-            // 2.4576MHz is the only clock that can ever actually be used when exporting SNDH
-            MFPTimer dump_period = ym_period_to_mfp(timerPeriod, 2457600.0f);
-            long mfpPeriod = (((dump_period.prescaler) << 8) | dump_period.period) << 8;
-            addWrite(0x10000 + i, mfpPeriod);
-          }
+          break;
         }
-        break;
-      default:
-        oldPeriod = chan[i].tfx.period;
-        if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
-          timerPeriod=(chan[i].freq)*chan[i].tfx.den/MAX(chan[i].tfx.num,1);
-          timerPeriod=floor((double)timerPeriod/pow(2, (double)chan[i].tfx.arp / 12));
-          timerPeriod+=chan[i].tfx.offset;
-          chan[i].tfx.period = timerPeriod;
-          if (oldPeriod != 0 && oldPeriod != chan[i].tfx.period) {
-            chan[i].tfx.counter = chan[i].tfx.counter * (double)chan[i].tfx.period / (double)oldPeriod;
+        default: {
+          oldPeriod = chan[i].tfx.period;
+          if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
+            timerPeriod=(chan[i].freq)*chan[i].tfx.den/MAX(chan[i].tfx.num,1);
+            timerPeriod=floor((double)timerPeriod/pow(2, (double)chan[i].tfx.arp / 12));
+            timerPeriod+=chan[i].tfx.offset;
+            chan[i].tfx.period = timerPeriod;
+            if (oldPeriod != 0 && oldPeriod != chan[i].tfx.period) {
+              chan[i].tfx.counter = chan[i].tfx.counter * (double)chan[i].tfx.period / (double)oldPeriod;
+            }
+            MFPTimer new_period = ym_period_to_mfp((unsigned short)chan[i].tfx.period>>1, 2457600.0f);
+            long mfpPeriod = (((new_period.prescaler) << 8) | new_period.period) << 8;
+            if (dumpWrites) addWrite(0x10000 + i, mfpPeriod);
+            // stupid pitch correction because:
+            // YM2149 half-clock and Sunsoft 5B: timers run an octave too high
+            // on AtomicSSG core timers run 2 octaves too high
+            if (clockSel || sunsoft) chan[i].tfx.period = chan[i].tfx.period * 2;
+            if (selCore && !intellivision) chan[i].tfx.period = chan[i].tfx.period * 4;
           }
-          MFPTimer new_period = ym_period_to_mfp((unsigned short)chan[i].tfx.period>>1, 2457600.0f);
-          long mfpPeriod = (((new_period.prescaler) << 8) | new_period.period) << 8;
-          if (dumpWrites) addWrite(0x10000 + i, mfpPeriod);
-          // stupid pitch correction because:
-          // YM2149 half-clock and Sunsoft 5B: timers run an octave too high
-          // on AtomicSSG core timers run 2 octaves too high
-          if (clockSel || sunsoft) chan[i].tfx.period = chan[i].tfx.period * 2;
-          if (selCore && !intellivision) chan[i].tfx.period = chan[i].tfx.period * 4;
+          break;
         }
-        break;
       }
       
       if (chan[i].keyOn) chan[i].keyOn = false;
