@@ -1030,6 +1030,7 @@ int DivPlatformAY8910::dispatch(DivCommand c) {
       chan[c.chan].nextPSGMode.val&=~8;
       chan[c.chan].keyOff=true;
       chan[c.chan].active=false;
+      chan[c.chan].outVol=0;
       chan[c.chan].macroInit(NULL);
       break;
     case DIV_CMD_NOTE_OFF_ENV:
