@@ -23,7 +23,6 @@
 #include "sndh.h"
 #include "../engine.h"
 #include "../ta-log.h"
-#include "../fileutils.h"
 extern "C" {
   #include "../../../extern/pack-ice/ice.h"
 }
