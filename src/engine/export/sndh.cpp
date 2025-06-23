@@ -23,6 +23,10 @@
 #include "sndh.h"
 #include "../engine.h"
 #include "../ta-log.h"
+#include "../fileutils.h"
+extern "C" {
+  #include "../../../extern/pack-ice/ice.h"
+}
 #include <fmt/printf.h>
 #include <array>
 #include <vector>
@@ -225,6 +229,7 @@ void DivExportSNDH::run() {
   int defaultSubsong=conf.getInt("defaultSubsong",MIN(e->getCurrentSubSong(),98));
   int tickRate=conf.getInt("tickRate",CLAMP(e->curSubSong->hz,1,200));
   // bool loop=conf.getBool("loop",true);
+  bool packed=conf.getBool("packed",true);
   int numSubsongs=MIN(e->song.subsong.size(),99);
 
   // find PSG's index
@@ -354,7 +359,23 @@ void DivExportSNDH::run() {
     w->writeI_BE(dataPoss[i]); // will be written later
   }
 
-  output.push_back(DivROMExportOutput("export.sndh",w));
+  int len = w->size();
+  if (packed) {
+    logAppend("compressing output...");
+    unsigned char* source;
+    unsigned char* dest;
+    source = w->getFinalBuf();
+    dest = (unsigned char*)ice_crunch((char*)source,len,1);
+
+    size_t iceLen = ice_crunched_length((char*)dest);
+    SafeWriter* o = new SafeWriter;
+    o->init();
+    o->write(dest, iceLen);
+    output.push_back(DivROMExportOutput("export.sndh", o));
+    logAppendf("compressed from %d bytes to %d bytes", len, iceLen);
+  } else {
+    output.push_back(DivROMExportOutput("export.sndh", w));
+  }
 
   progress[0].amount=1.0f;
   

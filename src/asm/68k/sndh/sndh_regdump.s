@@ -70,7 +70,7 @@ cmdloop:
     move.b  (a0)+,d0
     bpl     cmd_backref
     cmp.b   #$ff,d0
-    beq     play_end
+    beq     cmd_endofstream
     cmp.b   #$d0,d0
     bcs     .one
     lsl.w   #8,d0
@@ -92,6 +92,12 @@ cmddone:
 play_end:
     movem.l (sp)+,d0-d3/a0-a5
     rts
+
+cmd_endofstream:
+    ; mute upon end of stream
+    ; placeholder until looping can be implemented
+    bsr     exit
+    bra     play_end
 
 cmd_backref:
     lsl.w   #1,d0

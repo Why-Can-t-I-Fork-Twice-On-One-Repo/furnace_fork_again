@@ -552,6 +552,10 @@ extern/pwrnoise/pwrnoise.c
 
 extern/blip_buf/blip_buf.c
 
+extern/pack-ice/ice_crunch.c
+extern/pack-ice/ice_decrunch.c
+extern/pack-ice/ice_info.c
+
 src/pch.cpp
 
 src/engine/platform/sound/sn76496.cpp

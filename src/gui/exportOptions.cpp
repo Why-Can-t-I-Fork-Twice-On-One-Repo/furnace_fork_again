@@ -385,10 +385,14 @@ void FurnaceGUI::drawExportROM(bool onWindow) {
       int defaultSubsong=romConfig.getInt("defaultSubsong",MIN(e->getCurrentSubSong(),98));
       int tickRate=romConfig.getInt("tickRate",CLAMP(e->curSubSong->hz,1,200));
       bool loop=romConfig.getBool("loop",true);
+      bool packed=romConfig.getBool("packed",true);
       int defaultSubsongNew=defaultSubsong;
       char id[256];
 
       if (ImGui::Checkbox(_("loop"),&loop)) {
+        altered=true;
+      }
+      if (ImGui::Checkbox(_("compress export"),&packed)) {
         altered=true;
       }
       if (ImGui::InputInt(_("tick Rate (Hz)"),&tickRate,1,10)) {
@@ -419,6 +423,7 @@ void FurnaceGUI::drawExportROM(bool onWindow) {
         romConfig.set("defaultSubsong",defaultSubsongNew);
         romConfig.set("tickRate",tickRate);
         romConfig.set("loop",loop);
+        romConfig.set("packed",packed);
       }
       break;
     }

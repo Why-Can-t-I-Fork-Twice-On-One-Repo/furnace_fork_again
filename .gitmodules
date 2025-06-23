@@ -8,3 +8,6 @@
 [submodule "extern/adpcm"]
 	path = extern/adpcm
 	url = https://github.com/superctr/adpcm
+[submodule "extern/pack-ice"]
+	path = extern/pack-ice
+	url = https://github.com/larsbrinkhoff/pack-ice.git
