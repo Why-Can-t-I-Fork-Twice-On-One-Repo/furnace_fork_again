@@ -893,7 +893,7 @@ void DivPlatformAY8910::tick(bool sysTick) {
       if (chan[i].keyOff) chan[i].keyOff = false;
       chan[i].freqChanged=false;
     }
-    int lowBound = CLAMP((chan[i].tfx.lowBound - (15 - chan[i].outVol)), 0, 15);
+    int lowBound = chan[i].active?CLAMP((chan[i].tfx.lowBound - (15 - chan[i].outVol)), 0, 15):0;
     if (dumpWrites) addWrite(0x10006 + i, lowBound);
     if (!usesTimer[i] && dumpWrites) addWrite(0x10003 + i, -1);
   }
