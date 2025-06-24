@@ -181,6 +181,7 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
       // do not replace this while with an if!
       // during implementation of non-linear mixing, when this timer scheme was used
       // a DC offset would accumulate over time, causing the output to slowly go out of bounds!
+      if (chan[i].tfx.period<=0) chan[i].tfx.period=1; // prevent infinite loop
       while (chan[i].tfx.counter >= chan[i].tfx.period) {
         chan[i].tfx.counter -= chan[i].tfx.period;
         switch (chan[i].tfx.mode) {
