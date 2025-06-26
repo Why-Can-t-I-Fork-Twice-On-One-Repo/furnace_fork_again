@@ -1035,6 +1035,7 @@ int DivPlatformAY8910::dispatch(DivCommand c) {
     case DIV_CMD_NOTE_OFF:
       chan[c.chan].dac.sample=-1;
       //if (dumpWrites) addWrite(0xffff0002+(c.chan<<8),0);
+      if (dumpWrites) addWrite(0x10003 + c.chan, -1);
       chan[c.chan].nextPSGMode.val&=~8;
       chan[c.chan].keyOff=true;
       chan[c.chan].active=false;
