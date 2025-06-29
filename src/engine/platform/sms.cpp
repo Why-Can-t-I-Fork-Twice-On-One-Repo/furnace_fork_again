@@ -60,6 +60,23 @@ void DivPlatformSMS::poolWrite(unsigned short a, unsigned char v) {
   }
 }
 
+void DivPlatformSMS::runTFX(int runRate, int advance) {
+  // rWrite(0,0x90|(i<<5)|(isMuted[i]?15:(15-(chan[i].outVol&15))));
+  for (int i=0; i<3; i++) {
+    chan[i].timer.counter += advance;
+    if (chan[i].timer.counter >= chan[i].timer.period) {
+      chan[i].timer.counter = 0;
+      chan[i].timer.output ^= 1;
+    }
+    if (chan[i].timer.output) {
+      rWrite(0,0x90|(i<<5)|(isMuted[i]?15:(15-(chan[i].outVol&15))));
+    } else {
+      //rWrite(0,0x90|(0<<5)|15);
+      rWrite(0,0x9f|i<<5);
+    }
+  }
+}
+
 void DivPlatformSMS::acquire_nuked(short** buf, size_t len) {
   int oL=0;
   int oR=0;
@@ -97,6 +114,7 @@ void DivPlatformSMS::acquire_nuked(short** buf, size_t len) {
     YMPSG_Clock(&sn_nuked);
     YMPSG_Clock(&sn_nuked);
     YMPSG_Clock(&sn_nuked);
+    for (int i=0; i<15; i++) runTFX();
     YMPSG_GetOutput(&sn_nuked,&oL,&oR);
     if (oL<-32768) oL=-32768;
     if (oL>32767) oL=32767;
@@ -281,6 +299,8 @@ void DivPlatformSMS::tick(bool sysTick) {
       } else {
         if (chan[i].freq<0) chan[i].freq=0;
       }
+      logI("sn: %04x, tfx: %04x",chan[i].freq, chan[i].timer.period);
+      chan[i].timer.period=chan[i].freq+1;
       //if (chan[i].actualNote>0x5d) chan[i].freq=0x01;
       rWrite(0,0x80|i<<5|(chan[i].freq&15));
       rWrite(0,chan[i].freq>>4);
@@ -371,6 +391,7 @@ int DivPlatformSMS::dispatch(DivCommand c) {
     case DIV_CMD_NOTE_OFF:
       chan[c.chan].active=false;
       chan[c.chan].keyOff=true;
+      chan[c.chan].outVol=0;
       chan[c.chan].macroInit(NULL);
       break;
     case DIV_CMD_NOTE_OFF_ENV:

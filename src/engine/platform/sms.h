@@ -29,10 +29,21 @@ extern "C" {
 
 class DivPlatformSMS: public DivDispatch {
   struct Channel: public SharedChannel<signed char> {
+    struct TFX {
+      int counter;
+      int period;
+      int output;
+      TFX() :
+        counter(0),
+        period(0),
+        output(0) {
+      }
+    } timer;
     int actualNote;
     bool writeVol;
-    Channel():
+    Channel() :
       SharedChannel<signed char>(15),
+      timer(TFX()),
       actualNote(0),
       writeVol(false) {}
   };
@@ -74,6 +85,7 @@ class DivPlatformSMS: public DivDispatch {
   void acquire_nuked(short** buf, size_t len);
   void acquire_mame(blip_buffer_t** bb, size_t len);
   public:
+    void runTFX(int runRate=0, int advance=1);
     void acquire(short** buf, size_t len);
     void acquireDirect(blip_buffer_t** bb, size_t len);
     int dispatch(DivCommand c);
