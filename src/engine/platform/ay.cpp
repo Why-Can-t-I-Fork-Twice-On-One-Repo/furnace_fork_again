@@ -254,7 +254,8 @@ DivPlatformAY8910::MFPTimer DivPlatformAY8910::ym_period_to_mfp(unsigned short y
   double dr = ym_period*clockRatio/mfpPrescalers[idx];
   // TODO: enforce our max freq limit of 1/4 clock + period 12 (51.2kHz) here like we do in the export
   MFPTimer result;
-  result.period=CLAMP((dr+0.5),1,256);
+  // listen, i would have just clamped this to (1,256) and let implicit conversion handle it, but the compiler likes to throw a hissy fit about it
+  result.period=(dr+0.5)>=256?0:(dr+0.5);
   result.prescaler=idx+1; // the timers take the prescaler index + 1 since index 0 is 0 internally
   return result;
 }
