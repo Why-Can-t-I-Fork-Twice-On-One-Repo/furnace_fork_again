@@ -237,25 +237,26 @@ DivPlatformAY8910::MFPTimer DivPlatformAY8910::ym_period_to_mfp(unsigned short y
     empty.prescaler = 0;
     return empty;
   };
-  constexpr int MFP_PRESCALERS[7] = { 4, 10, 16, 50, 64, 100, 200 };
-  double ym_period_sec = (double)(ym_period) / (double)(rate/2);
-  double min_error = 1e9;
-  DivPlatformAY8910::MFPTimer best;
-  for (int presc_idx = 0; presc_idx < 7; ++presc_idx) {
-    int presc = MFP_PRESCALERS[presc_idx];
-    double ideal_data = ym_period_sec * clock / presc;
-    int data = (int)(round(ideal_data));
-    if (data < 1) data = 1;
-    if (data > 256) data = 256;
-    double actual_period = (data * presc) / clock;
-    double error = fabs(actual_period - ym_period_sec);
-    if (error < min_error) {
-      min_error = error;
-      best.period = (data == 256) ? 0 : data; // MFP: 0 means 256
-      best.prescaler = presc_idx+1;
-    }
-  }
-  return best;
+  constexpr int mfpPrescalers[7] = {4, 10, 16, 50, 64, 100, 200}; // this should really be kept as a global... CBA
+  const double clockRatio = clock/(rate/2);
+  // just bin it (with magic values as our threshold :sparkles:)
+  // there must be a better way to do this, this is so ugly
+  // this will produce less accurate results, but good for vibratos and portamentos
+  int idx;
+  if (ym_period < 51) idx=0; // 1/4
+  else if (ym_period < 129) idx=1; // 1/10
+  else if (ym_period < 207) idx=2; // 1/16
+  else if (ym_period < 648) idx=3; // 1/50
+  else if (ym_period < 830) idx=4; // 1/64
+  else if (ym_period < 1296) idx=5; // 1/100
+  else idx=6; // 1/200
+
+  double dr = ym_period*clockRatio/mfpPrescalers[idx];
+  // TODO: enforce our max freq limit of 1/4 clock + period 12 (51.2kHz) here like we do in the export
+  MFPTimer result;
+  result.period=CLAMP((dr+0.5),1,256);
+  result.prescaler=idx+1; // the timers take the prescaler index + 1 since index 0 is 0 internally
+  return result;
 }
 
 void DivPlatformAY8910::runMFP(int runRate, int advance) {
