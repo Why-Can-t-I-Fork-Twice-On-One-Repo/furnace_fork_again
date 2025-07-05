@@ -150,6 +150,61 @@ void DivPlatformAY8930::runDAC(int advance) {
   }
 }
 
+void DivPlatformAY8930::runTFX(int runRate, int advance) {
+  float counterRatio = advance;
+  if (runRate != 0) counterRatio = (double)rate / (double)runRate;
+  int timerPeriod, output;
+  for (int i = 0; i < 3; i++) {
+    if (chan[i].active && (chan[i].curPSGMode.val & 16) && !(chan[i].curPSGMode.val & 8)) {
+      if (chan[i].tfx.mode == -1 && !isMuted[i]) {
+          immWrite(0x08+i,(chan[i].outVol&31)|((chan[i].nextPSGMode.getEnvelope())<<3));
+          continue;
+      }
+      chan[i].tfx.counter += counterRatio;
+      if (chan[i].tfx.counter >= chan[i].tfx.period) {
+        chan[i].tfx.counter -= chan[i].tfx.period;
+        switch (chan[i].tfx.mode) {
+        case 0:
+          // pwm
+          // we will handle the modulator gen after this switch... if we don't, crackling happens
+          chan[i].tfx.out ^= 1;
+          break;
+        case 1:
+          // syncbuzzer
+          if (!isMuted[i]) {
+            immWrite(0x08+i,(chan[i].outVol&31)|((chan[i].nextPSGMode.getEnvelope())<<3));
+          }
+          if (i==0) immWrite(0xd, chan[i].envelope.mode);
+          else immWrite(0x13+i,chan[i].envelope.mode);
+          break;
+        case 2:
+        default:
+          // unimplemented, or invalid effects here
+          break;
+        }
+      }
+      if (chan[i].tfx.mode == 0) {
+        // pwm
+        output = ((chan[i].tfx.out) ? chan[i].outVol : (chan[i].tfx.lowBound - (31 - chan[i].outVol)));
+        output = (output <= 0) ? 0 : output; // underflow
+        output = (output >= 31) ? 31 : output; // overflow
+        output &= 31; // i don't know if i need this but i'm too scared to remove it
+        if (!isMuted[i]) {
+          // TODO: ???????
+          immWrite(0x08+i,output|((chan[i].nextPSGMode.getEnvelope())<<3));
+        }
+      }
+    }
+    if (chan[i].tfx.num > 0) {
+      timerPeriod = chan[i].freq * chan[i].tfx.den / chan[i].tfx.num;
+    }
+    else {
+      timerPeriod = chan[i].freq * chan[i].tfx.den;
+    }
+    if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) chan[i].tfx.period = timerPeriod + chan[i].tfx.offset;
+  }
+}
+
 void DivPlatformAY8930::checkWrites() {
   while (!writes.empty()) {
     QueuedWrite w=writes.front();
@@ -210,6 +265,12 @@ void DivPlatformAY8930::acquireDirect(blip_buffer_t** bb, size_t len) {
           if (remainTime<advance) advance=remainTime;
         }
 
+        // TFX
+        if (chan[j].active && (chan[j].curPSGMode.val&16) && !(chan[j].curPSGMode.val&8) && chan[j].tfx.mode!=-1) {
+          const int remainTime=chan[j].tfx.period-chan[j].tfx.counter;
+          if (remainTime<advance) advance=remainTime;
+        }
+
         if (advance<=1) break;
       }
       // noise
@@ -225,6 +286,7 @@ void DivPlatformAY8930::acquireDirect(blip_buffer_t** bb, size_t len) {
     if (advance<1) advance=1;
     
     runDAC(advance);
+    runTFX(0,advance);
     checkWrites();
 
     ay->sound_stream_update(ayBuf,advance);
@@ -325,6 +387,7 @@ void DivPlatformAY8930::tick(bool sysTick) {
     if (chan[i].std.wave.had) {
       if (!(chan[i].nextPSGMode.val&8)) {
         chan[i].nextPSGMode.val=chan[i].std.wave.val&7;
+        chan[i].nextPSGMode.val|=(chan[i].curPSGMode.val&16);
         if (chan[i].active) {
           chan[i].curPSGMode.val=chan[i].nextPSGMode.val;
         }
@@ -399,6 +462,46 @@ void DivPlatformAY8930::tick(bool sysTick) {
       chan[i].envelope.period=chan[i].std.ex5.val;
       immWrite(regPeriodL[i],chan[i].envelope.period);
       immWrite(regPeriodH[i],chan[i].envelope.period>>8);
+    }
+    if (chan[i].std.ex6.had) {
+      // 0 - disable timer
+      // 1 - pwm
+      // 2 - syncbuzzer
+      switch (chan[i].std.ex6.val) {
+        case 1:
+          chan[i].nextPSGMode.val|=16;
+          chan[i].tfx.mode = 0;
+          break;
+        case 2:
+          chan[i].nextPSGMode.val|=16;
+          chan[i].tfx.mode = 1;
+          break;
+        case 3:
+          chan[i].nextPSGMode.val|=16;
+          chan[i].tfx.mode = 2;
+          break;
+        default:
+          chan[i].nextPSGMode.val|=16;
+          chan[i].tfx.mode = -1; // this is a workaround!
+          break;
+      }
+      logI("%i", chan[i].tfx.mode);
+    }
+    if (chan[i].std.ex7.had) {
+      chan[i].tfx.offset=chan[i].std.ex7.val;
+    }
+    if (chan[i].std.ex8.had) {
+      chan[i].tfx.num=chan[i].std.ex8.val;
+      chan[i].freqChanged=true;
+      if (!chan[i].std.fms.will) chan[i].tfx.den=1;
+    }
+    if (chan[i].std.ams.had) {
+      chan[i].tfx.den=chan[i].std.ams.val;
+      chan[i].freqChanged=true;
+      if (!chan[i].std.ex8.will) chan[i].tfx.num=1;
+    }
+    if (chan[i].std.ex9.had) {
+      chan[i].tfx.lowBound=chan[i].std.ex9.val;
     }
     if (chan[i].freqChanged || chan[i].keyOn || chan[i].keyOff) {
       chan[i].freq=parent->calcFreq(chan[i].baseFreq,chan[i].pitch,chan[i].fixedArp?chan[i].baseNoteOverride:chan[i].arpOff,chan[i].fixedArp,true,0,chan[i].pitch2,chipClock,CHIP_DIVIDER);

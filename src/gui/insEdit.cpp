@@ -8725,6 +8725,23 @@ void FurnaceGUI::drawInsEdit() {
             }
           }
         }
+        if (ins->type==DIV_INS_AY8930) {
+          if (!ins->amiga.useSample)
+          {
+            if (ImGui::BeginTabItem(_("Timer Macros")))
+            {
+              ImGui::Text(_("warning: timer effects require direct stream mode to be enabled during VGM export!"));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Timer FX"),&ins->std.ex6Macro,0,2,64,uiColors[GUI_COLOR_MACRO_OTHER],false,NULL,macroTFXModes));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Timer Offset"),&ins->std.ex7Macro,-2048,2047,160,uiColors[GUI_COLOR_MACRO_PITCH],true,macroRelativeMode,NULL,false,NULL,false,NULL,false,true));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Timer Num"),&ins->std.ex8Macro,0,15,64,uiColors[GUI_COLOR_MACRO_OTHER]));
+              // listen, i wanted to use the same scheme, but the AY8930 uses FMS and Alg macros
+              macroList.push_back(FurnaceGUIMacroDesc(_("Timer Den"),&ins->std.amsMacro,0,15,64,uiColors[GUI_COLOR_MACRO_OTHER]));
+              macroList.push_back(FurnaceGUIMacroDesc(_("PWM Boundary"),&ins->std.ex9Macro,0,31,64,uiColors[GUI_COLOR_MACRO_OTHER]));
+              drawMacros(macroList,macroEditStateMacros,ins);
+              ImGui::EndTabItem();
+            }
+          }
+        }
         if (ins->type==DIV_INS_POWERNOISE || ins->type==DIV_INS_POWERNOISE_SLOPE) {
           if (ImGui::BeginTabItem("PowerNoise")) {
             int pnOctave=ins->powernoise.octave;

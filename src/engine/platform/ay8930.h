@@ -57,6 +57,10 @@ class DivPlatformAY8930: public DivDispatch {
           return (val&8)?0:(val&4);
         }
 
+        unsigned char getTimerFX() {
+          return (val&8)?0:(val&16);
+        }
+
         PSGMode(unsigned char v=1):
           val(v) {}
       };
@@ -77,6 +81,22 @@ class DivPlatformAY8930: public DivDispatch {
           setPos(false) {}
       } dac;
 
+      struct TFX {
+        int period;
+        float counter;
+        int offset, den, num, mode, lowBound, out;
+        TFX() :
+          period(0),
+          counter(0),
+          offset(1),
+          den(1),
+          num(1),
+          mode(0),
+          lowBound(0),
+          out(0) {
+        }
+      } tfx;
+
       unsigned char autoEnvNum, autoEnvDen, duty, autoNoiseMode;
       signed char konCycles, autoNoiseOff;
       unsigned short fixedFreq;
@@ -86,6 +106,7 @@ class DivPlatformAY8930: public DivDispatch {
         curPSGMode(PSGMode(0)),
         nextPSGMode(PSGMode(1)),
         dac(DAC()),
+        tfx(TFX()),
         autoEnvNum(0),
         autoEnvDen(0),
         duty(4),
@@ -132,6 +153,7 @@ class DivPlatformAY8930: public DivDispatch {
     friend void putDispatchChan(void*,int,int);
   
   public:
+    void runTFX(int runRate, int advance);
     void acquireDirect(blip_buffer_t** bb, size_t len);
     int dispatch(DivCommand c);
     void* getChanState(int chan);
