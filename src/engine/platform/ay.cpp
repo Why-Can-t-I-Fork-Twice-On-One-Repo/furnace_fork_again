@@ -239,16 +239,16 @@ DivPlatformAY8910::MFPTimer DivPlatformAY8910::ym_period_to_mfp(unsigned short y
   };
   constexpr int mfpPrescalers[7] = {4, 10, 16, 50, 64, 100, 200}; // this should really be kept as a global... CBA
   const double clockRatio = clock/(rate/2);
-  // just bin it (with magic values as our threshold :sparkles:)
+  // just bin it
   // there must be a better way to do this, this is so ugly
   // this will produce less accurate results, but good for vibratos and portamentos
   int idx;
-  if (ym_period < 51) idx=0; // 1/4
-  else if (ym_period < 129) idx=1; // 1/10
-  else if (ym_period < 207) idx=2; // 1/16
-  else if (ym_period < 648) idx=3; // 1/50
-  else if (ym_period < 830) idx=4; // 1/64
-  else if (ym_period < 1296) idx=5; // 1/100
+  if (ym_period < (256*4)/clockRatio) idx = 0; // 1/4
+  else if (ym_period < (256*10)/clockRatio) idx=1; // 1/10
+  else if (ym_period < (256*16)/clockRatio) idx=2; // 1/16
+  else if (ym_period < (256*50)/clockRatio) idx=3; // 1/50
+  else if (ym_period < (256*64)/clockRatio) idx=4; // 1/64
+  else if (ym_period < (256*100)/clockRatio) idx=5; // 1/100
   else idx=6; // 1/200
 
   double dr = ym_period*clockRatio/mfpPrescalers[idx];
