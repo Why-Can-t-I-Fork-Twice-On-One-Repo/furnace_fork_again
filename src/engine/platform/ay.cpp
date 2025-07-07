@@ -156,6 +156,7 @@ void DivPlatformAY8910::runDAC(int runRate, int advance) {
 }
 
 void DivPlatformAY8910::runTFX(int runRate, int advance) {
+  // 32-bit timer scheme (timer frequency resolution: 32-bit)
   /*
   developer's note: if you are checking for intellivision
   make sure to add "&& selCore"
@@ -168,7 +169,7 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
   // shut the compiler up, jesus...
   for (int i=0; i<3; i++) {
     if (chan[i].active && (chan[i].curPSGMode.val&16) && !(chan[i].curPSGMode.val&8)) {
-      if (chan[i].tfx.mode == -1 && !isMuted[i]) {
+      if (chan[i].tfx.mode==-1 && !isMuted[i]) {
         if (intellivision && chan[i].curPSGMode.getEnvelope()) {
           immWrite(0x08+i,(chan[i].outVol&0xc)<<2);
           continue;
@@ -177,33 +178,31 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
           continue;
         }
       }
-      chan[i].tfx.counter += counterRatio;
+      chan[i].tfx.counter+=counterRatio;
       // do not replace this while with an if!
       // during implementation of non-linear mixing, when this timer scheme was used
       // a DC offset would accumulate over time, causing the output to slowly go out of bounds!
       if (chan[i].tfx.period<=0) chan[i].tfx.period=1; // prevent infinite loop
-      while (chan[i].tfx.counter >= chan[i].tfx.period) {
-        chan[i].tfx.counter -= chan[i].tfx.period;
+      while (chan[i].tfx.counter>=chan[i].tfx.period) {
+        chan[i].tfx.counter-=chan[i].tfx.period;
         switch (chan[i].tfx.mode) {
           case 0:
             // pwm
-            chan[i].tfx.out ^= 1;
+            chan[i].tfx.out^=1;
             break;
           case 1:
             // syncbuzzer
             if (!isMuted[i]) {
               if (intellivision && chan[i].curPSGMode.getEnvelope()) {
-                immWrite(0x08 + i, (chan[i].outVol & 0xc) << 2);
-              }
-              else {
-                immWrite(0x08 + i, (chan[i].outVol & 15) | ((chan[i].curPSGMode.getEnvelope()) << 2));
+                immWrite(0x08+i,(chan[i].outVol&0xc)<<2);
+              } else {
+                immWrite(0x08+i,(chan[i].outVol&15)|((chan[i].curPSGMode.getEnvelope())<<2));
               }
             }
             if (intellivision && selCore) {
-              immWrite(0xa, ayEnvMode);
-            }
-            else {
-              immWrite(0xd, ayEnvMode);
+              immWrite(0xa,ayEnvMode);
+            } else {
+              immWrite(0xd,ayEnvMode);
             }
             break;
           case 2:
@@ -212,17 +211,17 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
         }
       }
       // so yeah... we need this separate from the timer logic to fix the crackling
-      if (chan[i].tfx.mode == 0) {
-        output = ((chan[i].tfx.out) ? chan[i].outVol : (chan[i].tfx.lowBound - (15 - chan[i].outVol)));
-        output = (output < 0) ? 0 : output; // underflow
-        output = (output > 15) ? 15 : output; // overflow
-        output &= 15; // i don't know if i need this but i'm too scared to remove it
+      if (chan[i].tfx.mode==0) {
+        output=((chan[i].tfx.out)?chan[i].outVol:(chan[i].tfx.lowBound-(15-chan[i].outVol)));
+        output=(output<0)?0:output; // underflow
+        output=(output>15)?15:output; // overflow
+        output&=15; // i don't know if i need this but i'm too scared to remove it
         if (!isMuted[i]) {
-          if (intellivision && selCore) {
-            immWrite(0x0b + i, (output & 0xc) << 2);
+          if (intellivision&&selCore) {
+            immWrite(0x0b+i,(output&0xc)<<2);
           }
           else {
-            immWrite(0x08 + i, output | (chan[i].curPSGMode.getEnvelope() << 2));
+            immWrite(0x08+i,output|(chan[i].curPSGMode.getEnvelope()<<2));
           }
         }
       }
@@ -230,76 +229,43 @@ void DivPlatformAY8910::runTFX(int runRate, int advance) {
   }
 }
 
-DivPlatformAY8910::MFPTimer DivPlatformAY8910::ym_period_to_mfp(unsigned short ym_period, double clock) {
-  if (ym_period == 0) {
-    DivPlatformAY8910::MFPTimer empty;
-    empty.period = 0;
-    empty.prescaler = 0;
-    return empty;
-  };
-  constexpr int mfpPrescalers[7] = {4, 10, 16, 50, 64, 100, 200}; // this should really be kept as a global... CBA
-  const double clockRatio = clock/(rate/2);
-  // just bin it
-  // there must be a better way to do this, this is so ugly
-  // this will produce less accurate results, but good for vibratos and portamentos
-  int idx;
-  if (ym_period < (256*4)/clockRatio) idx = 0; // 1/4
-  else if (ym_period < (256*10)/clockRatio) idx=1; // 1/10
-  else if (ym_period < (256*16)/clockRatio) idx=2; // 1/16
-  else if (ym_period < (256*50)/clockRatio) idx=3; // 1/50
-  else if (ym_period < (256*64)/clockRatio) idx=4; // 1/64
-  else if (ym_period < (256*100)/clockRatio) idx=5; // 1/100
-  else idx=6; // 1/200
-
-  double dr = ym_period*clockRatio/mfpPrescalers[idx];
-  // TODO: enforce our max freq limit of 1/4 clock + period 12 (51.2kHz) here like we do in the export
-  MFPTimer result;
-  // listen, i would have just clamped this to (1,256) and let implicit conversion handle it, but the compiler likes to throw a hissy fit about it
-  result.period=(dr+0.5)>=256?0:(dr+0.5);
-  result.prescaler=idx+1; // the timers take the prescaler index + 1 since index 0 is 0 internally
-  return result;
-}
-
-void DivPlatformAY8910::runMFP(int runRate, int advance) {
-  const unsigned char prescalers[8] = {0, 4, 10, 16, 50, 64, 100, 200};
-  double counterRatio = advance * (tfxClock / rate);
-  for (int i = 0; i < 3; i++) {
-    //if (!mfp.timer[i].prescaler) continue;
-    if (chan[i].active && (chan[i].curPSGMode.val & 16) && !(chan[i].curPSGMode.val & 8)) {
-      if (chan[i].tfx.mode == -1 && !isMuted[i]) {
+void DivPlatformAY8910::runMFP(int advance) {
+  // MFP timer scheme (timer frequency resolution: 8-bit with prescalers)
+  double counterRatio = advance*(tfxClock/rate);
+  for (int i = 0; i<3; i++) {
+    if (chan[i].active && (chan[i].curPSGMode.val&16) && !(chan[i].curPSGMode.val&8)) {
+      if (chan[i].tfx.mode==-1 && !isMuted[i]) {
         if (intellivision && chan[i].curPSGMode.getEnvelope()) {
-          immWrite(0x08 + i, (chan[i].outVol & 0xc) << 2);
+          immWrite(0x08+i,(chan[i].outVol&0xc)<<2);
           continue;
-        }
-        else {
-          immWrite(0x08 + i, (chan[i].outVol & 15) | ((chan[i].curPSGMode.getEnvelope()) << 2));
+        } else {
+          immWrite(0x08+i,(chan[i].outVol&15)|((chan[i].curPSGMode.getEnvelope())<<2));
           continue;
         }
       }
-      mfp.timer[i].timerClock += counterRatio;
-      int actualPeriod = (mfp.timer[i].period == 0) ? 256 * prescalers[mfp.timer[i].prescaler & 7] : mfp.timer[i].period * prescalers[mfp.timer[i].prescaler & 7];
-      if (mfp.timer[i].timerClock >= actualPeriod) {
-        mfp.timer[i].timerClock -= actualPeriod;
+      mfp.timer[i].timerClock+=counterRatio;
+      // for simplicity (and to make life easier so we don't run 2 counters at the same time), we multiply period by the prescaler
+      int actualPeriod=!mfp.timer[i].period?(256*mfpPrescalers[mfp.timer[i].prescaler&7]):(mfp.timer[i].period*mfpPrescalers[mfp.timer[i].prescaler&7]);
+      if (mfp.timer[i].timerClock>=actualPeriod) {
+        mfp.timer[i].timerClock-=actualPeriod;
         switch (chan[i].tfx.mode) {
           case 0:
             // pwm
-            chan[i].tfx.out ^= 1;
+            chan[i].tfx.out^=1;
             break;
           case 1:
             // syncbuzzer
             if (!isMuted[i]) {
               if (intellivision && chan[i].curPSGMode.getEnvelope()) {
-                immWrite(0x08 + i, (chan[i].outVol & 0xc) << 2);
-              }
-              else {
-                immWrite(0x08 + i, (chan[i].outVol & 15) | ((chan[i].curPSGMode.getEnvelope()) << 2));
+                immWrite(0x08+i,(chan[i].outVol&0xc)<<2);
+              } else {
+                immWrite(0x08+i,(chan[i].outVol&15)|((chan[i].curPSGMode.getEnvelope())<<2));
               }
             }
             if (intellivision && selCore) {
-              immWrite(0xa, ayEnvMode);
-            }
-            else {
-              immWrite(0xd, ayEnvMode);
+              immWrite(0xa,ayEnvMode);
+            } else {
+              immWrite(0xd,ayEnvMode);
             }
             break;
           case 2:
@@ -307,23 +273,53 @@ void DivPlatformAY8910::runMFP(int runRate, int advance) {
             break;
         }
       }
-      if (chan[i].tfx.mode == 0) {
-        int output = ((chan[i].tfx.out) ? chan[i].outVol : (chan[i].tfx.lowBound - (15 - chan[i].outVol)));
-        output = (output <= 0) ? 0 : output; // underflow
-        output = (output >= 15) ? 15 : output; // overflow
+      if (chan[i].tfx.mode==0) {
+        int output=((chan[i].tfx.out)?chan[i].outVol:(chan[i].tfx.lowBound-(15-chan[i].outVol)));
+        output=(output<=0)?0:output; // underflow
+        output=(output>=15)?15:output; // overflow
         output &= 15; // i don't know if i need this but i'm too scared to remove it
         if (!isMuted[i]) {
           if (intellivision && selCore) {
-            immWrite(0x0b + i, (output & 0xc) << 2);
+            immWrite(0x0b+i,(output & 0xc)<<2);
           }
           else {
-            immWrite(0x08 + i, output | (chan[i].curPSGMode.getEnvelope() << 2));
+            immWrite(0x08+i,output|(chan[i].curPSGMode.getEnvelope()<<2));
           }
         }
       }
     }
   }
 }
+
+DivPlatformAY8910::MFPTimer DivPlatformAY8910::calcMfpFreq(unsigned short ym_period, double clock) {
+  if (ym_period == 0) {
+    DivPlatformAY8910::MFPTimer empty;
+    empty.period = 0;
+    empty.prescaler = 0;
+    return empty;
+  };
+  const double clockRatio = clock/(rate/2);
+  // just bin it
+  // there must be a better way to do this, this is so ugly
+  // this will produce less accurate results, but good for vibratos and portamentos
+  int idx;
+  if (ym_period<(256*4)/clockRatio) idx=1; // 1/4
+  else if (ym_period<(256*10)/clockRatio) idx=2; // 1/10
+  else if (ym_period<(256*16)/clockRatio) idx=3; // 1/16
+  else if (ym_period<(256*50)/clockRatio) idx=4; // 1/50
+  else if (ym_period<(256*64)/clockRatio) idx=5; // 1/64
+  else if (ym_period<(256*100)/clockRatio) idx=6; // 1/100
+  else idx=7; // 1/200
+
+  double dr = ym_period*clockRatio/mfpPrescalers[idx];
+  // TODO: enforce our max freq limit of 1/4 clock + period 12 (51.2kHz) here like we do in the export
+  MFPTimer result;
+  // listen, i would have just clamped this to (1,256) and let implicit conversion handle it, but the compiler likes to throw a hissy fit about it
+  result.period=(dr+0.5)>=256?0:(dr+0.5);
+  result.prescaler=idx; // the timers take the prescaler index + 1 since index 0 is 0 internally
+  return result;
+}
+
 
 void DivPlatformAY8910::checkWrites() {
   while (!writes.empty()) {
@@ -340,8 +336,9 @@ void DivPlatformAY8910::checkWrites() {
   }
 }
 
-// taken from Hatari source code...
-void DivPlatformAY8910::YM2149_BuildModelVolumeTable(unsigned short volumetable[32][32][32]) {
+// taken from Hatari source code as-is
+// original function name: YM2149_BuildModelVolumeTable in src/sound.c
+void DivPlatformAY8910::buildVolumeTable(unsigned short volumetable[32][32][32]) {
   constexpr double MaxVol = 32767.0;                 /* Normal Mode Maximum value in table */
   constexpr double FOURTH2 = 1.19;                  /* Fourth root of two from YM2149 */
   constexpr double WARP = 1.666666666666666667;    /* measured as 1.65932 from 46602 */
@@ -448,18 +445,17 @@ void DivPlatformAY8910::acquire_mame(blip_buffer_t** bb, size_t len) {
         }
 
         // TFX
-        if (chan[j].active && (chan[j].curPSGMode.val & 16) && !(chan[j].curPSGMode.val & 8) && chan[j].tfx.mode != -1) {
+        if (chan[j].active && (chan[j].curPSGMode.val&16) && !(chan[j].curPSGMode.val&8) && chan[j].tfx.mode!=-1) {
           double tfxTicksLeft;
-          if (timerScheme == 1) {
-            constexpr int prescalers[8] = { 1, 4, 10, 16, 50, 64, 100, 200 };
-            int actualPeriod = (mfp.timer[j].period == 0) ? 256 * prescalers[mfp.timer[j].prescaler & 7] : mfp.timer[j].period * prescalers[mfp.timer[j].prescaler & 7];
-            tfxTicksLeft = fabs(actualPeriod - mfp.timer[j].timerClock);
+          if (timerScheme==1) {
+            int actualPeriod=!mfp.timer[j].period?256*mfpPrescalers[mfp.timer[j].prescaler&7]:mfp.timer[j].period*mfpPrescalers[mfp.timer[j].prescaler&7];
+            tfxTicksLeft=fabs(actualPeriod-mfp.timer[j].timerClock);
           }
           else {
-            tfxTicksLeft = (double)(chan[j].tfx.period - chan[j].tfx.counter);
+            tfxTicksLeft=(double)(chan[j].tfx.period-chan[j].tfx.counter);
           }
-          int samplesToNextTFX = (int)ceil(tfxTicksLeft / (tfxClock / rate));
-          if (samplesToNextTFX < advance) advance = samplesToNextTFX;
+          int samplesToNextTFX=(int)ceil(tfxTicksLeft/(tfxClock/rate));
+          if (samplesToNextTFX<advance) advance=samplesToNextTFX;
         }
 
         if (advance<=1) break;
@@ -485,10 +481,9 @@ void DivPlatformAY8910::acquire_mame(blip_buffer_t** bb, size_t len) {
     }
 
     runDAC(0,advance);
-    // fuck AtomicSSG...
     switch (timerScheme) {
       case 1:
-        runMFP(0, advance);
+        runMFP(advance);
         break;
       default:
         runTFX(0, advance);
@@ -511,9 +506,9 @@ void DivPlatformAY8910::acquire_mame(blip_buffer_t** bb, size_t len) {
       oscBuf[2]->putSample(i,CLAMP(sunsoftVolTable[31-((ay->lastIndx>>10)&31)]<<3,-32768,32767));
     } else {
       if (stereo) {
-        int out0= ayBuf[0] + ((ayBuf[1] * centerVol + ayBuf[2] * sideVol) >> 8);
+        int out0=ayBuf[0]+((ayBuf[1]*centerVol+ayBuf[2]*sideVol) >> 8);
         //int out1=((ayBuf[0]*stereoSep)>>8)+ayBuf[1]+ayBuf[2];
-        int out1= ((ayBuf[0] * sideVol + ayBuf[1] * centerVol) >> 8) + ayBuf[2];
+        int out1=((ayBuf[0]*sideVol+ayBuf[1]*centerVol)>>8)+ayBuf[2];
         if (lastOut[0]!=out0) {
           blip_add_delta(bb[0],i,out0-lastOut[0]);
           lastOut[0]=out0;
@@ -526,11 +521,11 @@ void DivPlatformAY8910::acquire_mame(blip_buffer_t** bb, size_t len) {
         int out;
         switch (mixingStrategy) {
           case 1:
-            out = voltable[ay->ay_int[0]][ay->ay_int[1]][ay->ay_int[2]];
-            out = (out/2)-6144;
+            out=voltable[ay->ay_int[0]][ay->ay_int[1]][ay->ay_int[2]];
+            out=(out/2)-6144;
             break;
           default:
-            out = ayBuf[0] + ayBuf[1] + ayBuf[2];
+            out=ayBuf[0]+ayBuf[1]+ayBuf[2];
             break;
         }
         if (lastOut[0]!=out) {
@@ -557,7 +552,7 @@ void DivPlatformAY8910::acquire_atomic(short** buf, size_t len) {
   }
   for (size_t i=0; i<len; i++) {
     runDAC(0,1);
-    runTFX(0, 1);
+    runTFX(0,1);
 
     if (!writes.empty()) {
       QueuedWrite w=writes.front();
@@ -574,14 +569,12 @@ void DivPlatformAY8910::acquire_atomic(short** buf, size_t len) {
       buf[1][i]=((ay_atomic.o_analog[0]*sideVol+ay_atomic.o_analog[1]*centerVol)>>8)+ay_atomic.o_analog[2];
     } else {
       int out;
-      // BROKEN! we will fix this later! fall back to MAME if the user requests non-linear mixing!
       switch (mixingStrategy) {
         case 1:
-          out = voltable[ay_atomic.ssg_vol_a][ay_atomic.ssg_vol_b][ay_atomic.ssg_vol_c];
-          out = (out / 2) - 6144;
+          out=(voltable[ay_atomic.ssg_vol_a][ay_atomic.ssg_vol_b][ay_atomic.ssg_vol_c])>>1;
           break;
         default:
-          out = ay_atomic.o_analog[0] + ay_atomic.o_analog[1] + ay_atomic.o_analog[2];
+          out=ay_atomic.o_analog[0]+ay_atomic.o_analog[1]+ay_atomic.o_analog[2];
           break;
       }
       buf[0][i]=out;
@@ -700,8 +693,8 @@ void DivPlatformAY8910::tick(bool sysTick) {
     }
     if (chan[i].std.phaseReset.had) {
       if (chan[i].std.phaseReset.val==1) {
-        chan[i].tfx.counter = 0;
-        chan[i].tfx.out = 0;
+        chan[i].tfx.counter=0;
+        chan[i].tfx.out=0;
         if (chan[i].nextPSGMode.val&8) {
           //if (dumpWrites) addWrite(0xffff0002+(i<<8),0);
           if (chan[i].dac.sample<0 || chan[i].dac.sample>=parent->song.sampleLen) {
@@ -752,23 +745,23 @@ void DivPlatformAY8910::tick(bool sysTick) {
       switch (chan[i].std.ex6.val) {
         case 1:
           chan[i].nextPSGMode.val|=16;
-          chan[i].tfx.mode = 0;
+          chan[i].tfx.mode=0;
           break;
         case 2:
           chan[i].nextPSGMode.val|=16;
-          chan[i].tfx.mode = 1;
+          chan[i].tfx.mode=1;
           break;
         case 3:
           chan[i].nextPSGMode.val|=16;
-          chan[i].tfx.mode = 2;
+          chan[i].tfx.mode=2;
           break;
         default:
           chan[i].nextPSGMode.val|=16;
-          chan[i].tfx.mode = -1; // this is a workaround!
+          chan[i].tfx.mode=-1; // this is a workaround!
           break;
       }
-      usesTimer[i] = true;
-      if (dumpWrites) addWrite(0x10003 + i, chan[i].tfx.mode);
+      usesTimer[i]=true;
+      if (dumpWrites) addWrite(0x10003+i, chan[i].tfx.mode);
     }
     if (chan[i].std.ex7.had) {
       chan[i].tfx.offset=chan[i].std.ex7.val;
@@ -778,20 +771,20 @@ void DivPlatformAY8910::tick(bool sysTick) {
       chan[i].tfx.num=chan[i].std.ex8.val;
       chan[i].freqChanged=true;
       if (!chan[i].std.fms.will) chan[i].tfx.den=1;
-      chan[i].freqChanged = true;
+      chan[i].freqChanged=true;
     }
     if (chan[i].std.fms.had) {
       chan[i].tfx.den=chan[i].std.fms.val;
       chan[i].freqChanged=true;
       if (!chan[i].std.ex8.will) chan[i].tfx.num=1;
-      chan[i].freqChanged = true;
+      chan[i].freqChanged=true;
     }
     if (chan[i].std.ams.had) {
       chan[i].tfx.lowBound=chan[i].std.ams.val;
     }
     if (chan[i].std.fb.had) {
       chan[i].tfx.arp=CLAMP(chan[i].std.fb.val,-16,15);
-      chan[i].freqChanged = true;
+      chan[i].freqChanged=true;
     }
     if (chan[i].freqChanged || chan[i].keyOn || chan[i].keyOff) {
       chan[i].freq=parent->calcFreq(chan[i].baseFreq,chan[i].pitch,chan[i].fixedArp?chan[i].baseNoteOverride:chan[i].arpOff,chan[i].fixedArp,true,0,chan[i].pitch2,chipClock,CHIP_DIVIDER);
@@ -838,49 +831,48 @@ void DivPlatformAY8910::tick(bool sysTick) {
       int timerPeriod, oldPeriod;
       switch (timerScheme) {
         case 1: {
+          if (selCore) break;
           // mfp timer freq calc
-          oldPeriod = mfp.timer[i].period;
-          int oldScaler = mfp.timer[i].prescaler;
-          if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
-            timerPeriod = (clockSel || sunsoft) ? chan[i].freq : (chan[i].freq >> 1); // MORE PITCH CORRECTION!
-            timerPeriod *= ((double)chan[i].tfx.den / MAX((double)chan[i].tfx.num, 1));
-            timerPeriod = floor((double)timerPeriod / pow(2, (double)chan[i].tfx.arp / 12));
-            timerPeriod += chan[i].tfx.offset;
-            MFPTimer new_period = ym_period_to_mfp(timerPeriod, tfxClock);
-            const unsigned char prescalers[8] = { 0, 4, 10, 16, 50, 64, 100, 200 };
-            if (mfp.timer[i].prescaler != new_period.prescaler) {
-              // lazy way to emulate MFP prescaler behaviour... but what am i going to do about it?
-              // add the MFP emulator from Hatari? hah! good luck, that thing has a bajillion wires on it that need to be detached
-              mfp.timer[i].timerClock = new_period.period * prescalers[new_period.prescaler&7];              
+          oldPeriod=mfp.timer[i].period;
+          int oldScaler=mfp.timer[i].prescaler;
+          if (chan[i].tfx.num>0 && chan[i].tfx.den>0) {
+            timerPeriod=(clockSel||sunsoft)?chan[i].freq:(chan[i].freq>>1); // MORE PITCH CORRECTION!
+            timerPeriod*=((double)chan[i].tfx.den/MAX((double)chan[i].tfx.num,1)); // i kinda wish there was a way to condense it down into 1-line...
+            timerPeriod=floor((double)timerPeriod/pow(2,(double)chan[i].tfx.arp/12.f))+chan[i].tfx.offset;
+            MFPTimer new_period = calcMfpFreq(timerPeriod, tfxClock);
+            mfp.timer[i].period=new_period.period;
+            mfp.timer[i].prescaler=new_period.prescaler;
+            if (oldScaler!=mfp.timer[i].prescaler) {
+              // lazy way to emulate MFP prescaler behaviour... but what can be done?
+              // add the MFP emulator from Hatari? hah! good luck, that thing has a ton of wires on it that need to be detached
+              mfp.timer[i].timerClock=new_period.period*mfpPrescalers[new_period.prescaler&7];              
             }
-            mfp.timer[i].period = new_period.period;
-            if (oldPeriod != 0 && mfp.timer[i].period != oldPeriod) {
-              mfp.timer[i].timerClock = mfp.timer[i].timerClock * (double)(mfp.timer[i].period * prescalers[new_period.prescaler & 7]) / (double)(oldPeriod * prescalers[oldScaler & 7]);
+            if (oldPeriod && mfp.timer[i].period!=oldPeriod) {
+              // DC-offset accumulation prevention... don't ask
+              mfp.timer[i].timerClock*=(double)(mfp.timer[i].period*mfpPrescalers[new_period.prescaler&7])/(double)(oldPeriod*mfpPrescalers[oldScaler&7]);
             }
-            mfp.timer[i].prescaler = new_period.prescaler;
-            if (chan[i].keyOn) mfp.timer[i].timerClock = 0; // we need this for deterministic playback...
+            if (chan[i].keyOn) mfp.timer[i].timerClock=0; // we need this for deterministic playback... because the damn thing does not reset itself upon reset
             // dump MFP period
             if (dumpWrites) {
               // 2.4576MHz is the only clock that can ever actually be used when exporting SNDH
-              MFPTimer dump_period = ym_period_to_mfp(timerPeriod, 2457600.0f);
-              long mfpPeriod = (((dump_period.prescaler) << 8) | dump_period.period) << 8;
-              addWrite(0x10000 + i, mfpPeriod);
+              MFPTimer dump_period=calcMfpFreq(timerPeriod,2457600.0f);
+              long mfpPeriod=(((dump_period.prescaler)<<8)|dump_period.period)<<8;
+              addWrite(0x10000+i,mfpPeriod);
             }
           }
           break;
         }
         default: {
-          oldPeriod = chan[i].tfx.period;
+          oldPeriod=chan[i].tfx.period;
           if (chan[i].tfx.num > 0 && chan[i].tfx.den > 0) {
             timerPeriod=(chan[i].freq)*chan[i].tfx.den/MAX(chan[i].tfx.num,1);
-            timerPeriod=floor((double)timerPeriod/pow(2, (double)chan[i].tfx.arp / 12));
-            timerPeriod+=chan[i].tfx.offset;
-            chan[i].tfx.period = timerPeriod;
-            if (oldPeriod != 0 && oldPeriod != chan[i].tfx.period) {
-              chan[i].tfx.counter = chan[i].tfx.counter * (double)chan[i].tfx.period / (double)oldPeriod;
+            timerPeriod=floor((double)timerPeriod/pow(2,(double)chan[i].tfx.arp/12.f))+chan[i].tfx.offset;
+            chan[i].tfx.period=timerPeriod;
+            if (oldPeriod && oldPeriod!=chan[i].tfx.period) {
+              chan[i].tfx.counter=chan[i].tfx.counter*(double)chan[i].tfx.period/(double)oldPeriod;
             }
-            MFPTimer new_period = ym_period_to_mfp((unsigned short)chan[i].tfx.period>>1, 2457600.0f);
-            long mfpPeriod = (((new_period.prescaler) << 8) | new_period.period) << 8;
+            MFPTimer new_period = calcMfpFreq((unsigned short)chan[i].tfx.period>>1,2457600.0f);
+            long mfpPeriod = (((new_period.prescaler)<<8)|new_period.period)<<8;
             if (dumpWrites) addWrite(0x10000 + i, mfpPeriod);
             // stupid pitch correction because:
             // YM2149 half-clock and Sunsoft 5B: timers run an octave too high
@@ -892,13 +884,13 @@ void DivPlatformAY8910::tick(bool sysTick) {
         }
       }
       
-      if (chan[i].keyOn) chan[i].keyOn = false;
-      if (chan[i].keyOff) chan[i].keyOff = false;
+      if (chan[i].keyOn) chan[i].keyOn=false;
+      if (chan[i].keyOff) chan[i].keyOff=false;
       chan[i].freqChanged=false;
     }
-    int lowBound = chan[i].active?CLAMP((chan[i].tfx.lowBound - (15 - chan[i].outVol)), 0, 15):0;
-    if (dumpWrites) addWrite(0x10006 + i, lowBound);
-    if (!usesTimer[i] && dumpWrites) addWrite(0x10003 + i, -1);
+    int lowBound=chan[i].active?CLAMP((chan[i].tfx.lowBound-(15-chan[i].outVol)),0,15):0;
+    if (dumpWrites) addWrite(0x10006+i,lowBound);
+    if (!usesTimer[i] && dumpWrites) addWrite(0x10003+i,-1);
   }
 
   updateOutSel();
@@ -1466,26 +1458,27 @@ void DivPlatformAY8910::setFlags(const DivConfig& flags) {
 
   switch (flags.getInt("timerClock", 0)) {
     case 1:
-      tfxClock = 2457600.0f;
+      tfxClock=2457600.0f;
       break;
     case -1:
-      tfxClock = flags.getInt("timerCustomClock", MIN_CUSTOM_CLOCK);
+      tfxClock=flags.getInt("timerCustomClock",MIN_CUSTOM_CLOCK);
       break;
     default:
-      tfxClock = chipClock;
+      tfxClock=chipClock;
       break;
   }
 
-  stereo = flags.getBool("stereo", false);
+  stereo=flags.getBool("stereo",false);
 
-  switch (flags.getInt("timerScheme", 0)) {
-  case 1:
-    timerScheme = 1;
-    break;
-  default:
-    timerScheme = 0;
-    break;
+  switch (flags.getInt("timerScheme",0)) {
+    case 1:
+      timerScheme=1;
+      break;
+    default:
+      timerScheme=0;
+      break;
   }
+  if (selCore) timerScheme = 0;
 
   if (ay!=NULL) delete ay;
   switch (flags.getInt("chipType",0)) {
@@ -1495,7 +1488,7 @@ void DivPlatformAY8910::setFlags(const DivConfig& flags) {
       yamaha=true;
       sunsoft=false;
       intellivision=false;
-      mixingStrategy = 0;
+      mixingStrategy=0;
       break;
     case 2:
       ay=new sunsoft_5b_sound_device(rate);
@@ -1503,7 +1496,7 @@ void DivPlatformAY8910::setFlags(const DivConfig& flags) {
       sunsoft=true;
       intellivision=false;
       clockSel=false;
-      mixingStrategy = 0;
+      mixingStrategy=0;
       break;
     case 3:
       ay=new ay8914_device(rate);
@@ -1514,13 +1507,13 @@ void DivPlatformAY8910::setFlags(const DivConfig& flags) {
       mixingStrategy=0;
       break;
     case 4:
-      clockSel = flags.getBool("halfClock", false);
-      stereo = false;
-      ay = new ym2149_device(rate, clockSel);
-      yamaha = true;
-      sunsoft = false;
-      intellivision = false;
-      mixingStrategy = 1;
+      clockSel=flags.getBool("halfClock", false);
+      stereo=false;
+      ay=new ym2149_device(rate, clockSel);
+      yamaha=true;
+      sunsoft=false;
+      intellivision=false;
+      mixingStrategy=1;
       break;
     default:
       ay=new ay8910_device(rate);
@@ -1552,18 +1545,18 @@ void DivPlatformAY8910::setFlags(const DivConfig& flags) {
 
   stereoSep=flags.getInt("stereoSep",0)&255;
   switch (flags.getInt("panLaw", 0)) {
-  default:
-    centerVol = 256;
-    sideVol = stereoSep;
-    break;
-  case 1:
-    centerVol = sqrtf((stereoSep + 256) / 512.f) * 256.f;
-    sideVol = sqrtf(stereoSep / 256.f) * 256.f;
-    break;
-  case 2:
-    centerVol = (stereoSep + 256) / 2;
-    sideVol = stereoSep;
-    break;
+    case 1:
+      centerVol=sqrtf((stereoSep+256)/512.f)*256.f;
+      sideVol=sqrtf(stereoSep/256.f)*256.f;
+      break;
+    case 2:
+      centerVol=(stereoSep+256)/2;
+      sideVol=stereoSep;
+      break;
+    default:
+      centerVol=256;
+      sideVol=stereoSep;
+      break;
   }
 }
 
@@ -1579,7 +1572,7 @@ int DivPlatformAY8910::init(DivEngine* p, int channels, int sugRate, const DivCo
   ay=NULL;
   setFlags(flags);
   reset();
-  YM2149_BuildModelVolumeTable(voltable);
+  buildVolumeTable(voltable);
   return 3;
 }
 

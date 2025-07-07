@@ -384,17 +384,17 @@ void SSG_Clock(ssg_t* chip, int clk)
         
         // expose internal state (for non-linear mixing)
         const unsigned char ym_4_to_5[16] = { 0,1,5,7,9,11,13,15,17,19,21,23,25,27,29,31 };
-        chip->ssg_vol_a = (chip->ssg_level_a & 0x10) != 0 ? envlevel : ym_4_to_5[chip->ssg_level_a & 15];
-        chip->ssg_vol_b = (chip->ssg_level_a & 0x10) != 0 ? envlevel : ym_4_to_5[chip->ssg_level_a & 15];
-        chip->ssg_vol_c = (chip->ssg_level_a & 0x10) != 0 ? envlevel : ym_4_to_5[chip->ssg_level_a & 15];
+        int ssg_vol_a = (chip->ssg_level_a & 0x10) != 0 ? envlevel : ym_4_to_5[chip->ssg_level_a & 15];
+        int ssg_vol_b = (chip->ssg_level_b & 0x10) != 0 ? envlevel : ym_4_to_5[chip->ssg_level_b & 15];
+        int ssg_vol_c = (chip->ssg_level_c & 0x10) != 0 ? envlevel : ym_4_to_5[chip->ssg_level_c & 15];
 
         int sign_a = ((chip->ssg_mode & 1) == 0 && (chip->ssg_sign[0] & 1) != 0) || ((chip->ssg_mode & 8) == 0 && chip->ssg_noise_bit);
         int sign_b = ((chip->ssg_mode & 2) == 0 && (chip->ssg_sign[0] & 2) != 0) || ((chip->ssg_mode & 16) == 0 && chip->ssg_noise_bit);
         int sign_c = ((chip->ssg_mode & 4) == 0 && (chip->ssg_sign[0] & 4) != 0) || ((chip->ssg_mode & 32) == 0 && chip->ssg_noise_bit);
 
-        chip->ssg_vol_a = sign_a ? 0 : chip->ssg_vol_a;
-        chip->ssg_vol_b = sign_b ? 0 : chip->ssg_vol_b;
-        chip->ssg_vol_c = sign_c ? 0 : chip->ssg_vol_c;
+        chip->ssg_vol_a = sign_a ? 0 : ssg_vol_a;
+        chip->ssg_vol_b = sign_b ? 0 : ssg_vol_b;
+        chip->ssg_vol_c = sign_c ? 0 : ssg_vol_c;
 
         static const float volume_lut_ay[32] = {
           0.0000,

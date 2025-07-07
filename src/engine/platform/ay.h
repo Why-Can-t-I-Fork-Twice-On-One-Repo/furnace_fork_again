@@ -31,6 +31,7 @@ class DivPlatformAY8910: public DivDispatch {
     const unsigned char AY8914RegRemap[16]={
       0,4,1,5,2,6,9,8,11,12,13,3,7,10,14,15
     };
+    const int mfpPrescalers[8] = {0,4,10,16,50,64,100,200};
     inline unsigned char regRemap(unsigned char reg) { return intellivision?AY8914RegRemap[reg&0x0f]:reg&0x0f; }
     struct Channel: public SharedChannel<int> {
       struct PSGMode {
@@ -184,12 +185,13 @@ class DivPlatformAY8910: public DivDispatch {
     friend void putDispatchChip(void*,int);
     friend void putDispatchChan(void*,int,int);
   
+    MFPTimer calcMfpFreq(unsigned short ym_period, double clock);
+    void buildVolumeTable(unsigned short volumetable[32][32][32]);
+
   public:
-    void YM2149_BuildModelVolumeTable(unsigned short volumetable[32][32][32]);
     void runDAC(int runRate=0, int advance=1);
     void runTFX(int runRate=0, int advance=1);
-    MFPTimer ym_period_to_mfp(unsigned short ym_period, double clock);
-    void runMFP(int runRate=0, int advance=1);
+    void runMFP(int advance=1);
     void setExtClockDiv(unsigned int eclk=COLOR_NTSC, unsigned char ediv=8);
     void acquire(short** buf, size_t len);
     void acquireDirect(blip_buffer_t** bb, size_t len);

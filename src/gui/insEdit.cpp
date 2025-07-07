@@ -2064,7 +2064,7 @@ void FurnaceGUI::drawMacroEdit(FurnaceGUIMacroDesc& i, int totalFit, float avail
       if (i.macro->macroType==DIV_MACRO_ARP || i.isArp) {
         MACRO_VZOOM=24;
         MACRO_VSCROLL=120-12;
-      } else if ((i.macro->macroType == DIV_MACRO_PITCH || i.isPitch) || (i.macro->macroType == DIV_MACRO_EX7 && i.isPitch)) {
+      } else if ((i.macro->macroType==DIV_MACRO_PITCH || i.isPitch) || (i.macro->macroType==DIV_MACRO_EX7 && i.isPitch)) {
         MACRO_VZOOM=128;
         MACRO_VSCROLL=2048-64;
       } else {
@@ -8714,14 +8714,18 @@ void FurnaceGUI::drawInsEdit() {
           {
             if (ImGui::BeginTabItem(_("Timer Macros")))
             {
-              ImGui::Text(_("warning: timer effects require direct stream mode to be enabled during VGM export!"));
-              macroList.push_back(FurnaceGUIMacroDesc(_("Timer FX"),&ins->std.ex6Macro,0,3,64,uiColors[GUI_COLOR_MACRO_OTHER],false,NULL,macroTFXModes));
-              macroList.push_back(FurnaceGUIMacroDesc(_("Timer Offset"),&ins->std.ex7Macro,-2048,2047,160,uiColors[GUI_COLOR_MACRO_PITCH],true,macroRelativeMode,NULL,false,NULL,false,NULL,false,true));
-              macroList.push_back(FurnaceGUIMacroDesc(_("Arp Offset"),&ins->std.fbMacro,-16,15,160,uiColors[GUI_COLOR_MACRO_PITCH],true,NULL,macroHoverNote,false,NULL,true,ins->std.fbMacro.val));
-              macroList.push_back(FurnaceGUIMacroDesc(_("Timer Num"),&ins->std.ex8Macro,0,15,64,uiColors[GUI_COLOR_MACRO_OTHER]));
-              macroList.push_back(FurnaceGUIMacroDesc(_("Timer Den"),&ins->std.fmsMacro,0,15,64,uiColors[GUI_COLOR_MACRO_OTHER]));
-              macroList.push_back(FurnaceGUIMacroDesc(_("PWM Boundary"),&ins->std.amsMacro,0,15,64,uiColors[GUI_COLOR_MACRO_OTHER]));
-              drawMacros(macroList,macroEditStateMacros,ins);
+              if (settings.ayCore == 1) {
+                ImGui::Text(_("warning: timer effects are broken in AtomicSSG! until this can be fixed, timer effects are disabled."));
+              } else {
+                ImGui::Text(_("warning: timer effects require direct stream mode to be enabled during VGM export!"));
+                macroList.push_back(FurnaceGUIMacroDesc(_("Timer FX"),&ins->std.ex6Macro,0,3,64,uiColors[GUI_COLOR_MACRO_OTHER],false,NULL,macroTFXModes));
+                macroList.push_back(FurnaceGUIMacroDesc(_("Timer Offset"),&ins->std.ex7Macro,-2048,2047,160,uiColors[GUI_COLOR_MACRO_PITCH],true,macroRelativeMode,NULL,false,NULL,false,NULL,false,true));
+                macroList.push_back(FurnaceGUIMacroDesc(_("Arp Offset"),&ins->std.fbMacro,-16,15,160,uiColors[GUI_COLOR_MACRO_PITCH],true,NULL,macroHoverNote,false,NULL,true,ins->std.fbMacro.val));
+                macroList.push_back(FurnaceGUIMacroDesc(_("Timer Num"),&ins->std.ex8Macro,0,15,64,uiColors[GUI_COLOR_MACRO_OTHER]));
+                macroList.push_back(FurnaceGUIMacroDesc(_("Timer Den"),&ins->std.fmsMacro,0,15,64,uiColors[GUI_COLOR_MACRO_OTHER]));
+                macroList.push_back(FurnaceGUIMacroDesc(_("PWM Boundary"),&ins->std.amsMacro,0,15,64,uiColors[GUI_COLOR_MACRO_OTHER]));
+                drawMacros(macroList,macroEditStateMacros,ins);
+              }
               ImGui::EndTabItem();
             }
           }

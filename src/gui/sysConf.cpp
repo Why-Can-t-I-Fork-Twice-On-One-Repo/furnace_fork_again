@@ -854,9 +854,9 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
       bool stereo=flags.getBool("stereo",false);
       int stereoSep=flags.getInt("stereoSep",0);
       int timerScheme=flags.getInt("timerScheme",0);
-      int timerClock = flags.getInt("timerClock", 0);
-      int timerCustomClock = flags.getInt("timerCustomClock", 0);
-      int panLaw = flags.getInt("panLaw", 0);
+      int timerClock=flags.getInt("timerClock", 0);
+      int timerCustomClock=flags.getInt("timerCustomClock", 0);
+      int panLaw=flags.getInt("panLaw", 0);
 
       ImGui::Text(_("Clock rate:"));
       ImGui::Indent();
@@ -995,16 +995,9 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
           chipType=1;
           altered=true;
         }
-        ImGui::BeginDisabled(settings.ayCore == 1);
-        if (ImGui::RadioButton(_("YM2149(F) with non-linear mixing"), chipType == 4)) {
-          chipType = 4;
-          altered = true;
-        }
-        ImGui::EndDisabled();
-        if (settings.ayCore==1) {
-          ImGui::Indent();
-          ImGui::Text("note: this chip type does not work on AtomicSSG!");
-          ImGui::Unindent();
+        if (ImGui::RadioButton(_("YM2149(F) with non-linear mixing"), chipType==4)) {
+          chipType=4;
+          altered=true;
         }
         if (ImGui::RadioButton(_("Sunsoft 5B"),chipType==2)) {
           chipType=2;
@@ -1056,10 +1049,10 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
           flags.set("halfClock",halfClock);
           flags.set("stereo",stereo);
           flags.set("stereoSep",stereoSep);
-          flags.set("timerScheme", timerScheme);
-          flags.set("timerClock", timerClock);
-          flags.set("timerCustomClock", timerCustomClock);
-          flags.set("panLaw", panLaw);
+          flags.set("timerScheme",timerScheme);
+          flags.set("timerClock",timerClock);
+          flags.set("timerCustomClock",timerCustomClock);
+          flags.set("panLaw",panLaw);
         });
       }
       break;
