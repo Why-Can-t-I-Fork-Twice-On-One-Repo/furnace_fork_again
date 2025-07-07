@@ -281,8 +281,7 @@ void DivPlatformAY8910::runMFP(int advance) {
         if (!isMuted[i]) {
           if (intellivision && selCore) {
             immWrite(0x0b+i,(output & 0xc)<<2);
-          }
-          else {
+          } else {
             immWrite(0x08+i,output|(chan[i].curPSGMode.getEnvelope()<<2));
           }
         }
@@ -450,8 +449,7 @@ void DivPlatformAY8910::acquire_mame(blip_buffer_t** bb, size_t len) {
           if (timerScheme==1) {
             int actualPeriod=!mfp.timer[j].period?256*mfpPrescalers[mfp.timer[j].prescaler&7]:mfp.timer[j].period*mfpPrescalers[mfp.timer[j].prescaler&7];
             tfxTicksLeft=fabs(actualPeriod-mfp.timer[j].timerClock);
-          }
-          else {
+          } else {
             tfxTicksLeft=(double)(chan[j].tfx.period-chan[j].tfx.counter);
           }
           int samplesToNextTFX=(int)ceil(tfxTicksLeft/(tfxClock/rate));
