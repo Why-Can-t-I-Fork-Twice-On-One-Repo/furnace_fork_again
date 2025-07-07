@@ -486,7 +486,7 @@ void DivPlatformAY8910::acquire_mame(blip_buffer_t** bb, size_t len) {
         runMFP(advance);
         break;
       default:
-        runTFX(0, advance);
+        runTFX(0,advance);
         break;
     }    
     checkWrites();
@@ -552,7 +552,7 @@ void DivPlatformAY8910::acquire_atomic(short** buf, size_t len) {
   }
   for (size_t i=0; i<len; i++) {
     runDAC(0,1);
-    runTFX(0,1);
+    //runTFX(0,1); // this is broken for some reason... it worked in earlier versions!
 
     if (!writes.empty()) {
       QueuedWrite w=writes.front();
