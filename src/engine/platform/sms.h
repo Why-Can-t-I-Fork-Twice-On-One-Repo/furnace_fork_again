@@ -36,16 +36,17 @@ class DivPlatformSMS: public DivDispatch {
       TFX() :
         counter(0),
         period(0),
-        output(0) {
-      }
+        output(0) {}
     } timer;
     int actualNote;
     bool writeVol;
+    bool timerEnabled;
     Channel() :
       SharedChannel<signed char>(15),
       timer(TFX()),
       actualNote(0),
-      writeVol(false) {}
+      writeVol(false),
+      timerEnabled(false) {}
   };
   Channel chan[4];
   DivDispatchOscBuffer* oscBuf[4];
